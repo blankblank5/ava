@@ -93,7 +93,8 @@
           { name: 'Air Shot',   dmg: 12,  cd: 300,  speed: 60, grav: 0.0, life: 300, shape: 'sharp' },
           { name: 'Wind Blade', dmg: 35,  cd: 2000, speed: 45, grav: 0.0, life: 300, shape: 'flat' },
           { name: 'Air Dash',   dmg: 0,   cd: 500,  type: 'dash' },
-          { name: 'Tornado',    dmg: 8,   cd: 6000, speed: 20, grav: 0.0, life: 400, shape: 'sharp', count: 6, spread: 0.5 }
+          // CHANGED: Tornado shape is now 'cone'
+          { name: 'Tornado',    dmg: 8,   cd: 6000, speed: 20, grav: 0.0, life: 400, shape: 'cone', count: 6, spread: 0.5 }
         ]
       },
       EARTH: { 
@@ -279,7 +280,10 @@
         const wallPos = camera.position.clone().addScaledVector(direction.setY(0).normalize(), 4);
         wallPos.y = 2; wall.position.copy(wallPos);
         wall.lookAt(camera.position.x, wallPos.y, camera.position.z);
-        scene.add(wall); solidWalls.push({ mesh: wall, hp: 10 });
+        scene.add(wall); 
+        
+        // CHANGED: Wall now has exactly 5 hits instead of health points
+        solidWalls.push({ mesh: wall, hitsLeft: 5 }); 
         return;
       }
 
@@ -310,19 +314,27 @@
 
     function createProjectile(pos, velDir, size, color, speed, gravity, shape, dmg, life, scaleMult=1) {
       let s = size * scaleMult, geometry;
+      
+      // CHANGED: Added the cone geometry, scaled up slightly, and pointed downwards
       if (shape === 'rock') geometry = new THREE.DodecahedronGeometry(s * 2, 0); 
       else if (shape === 'pebble') geometry = new THREE.TetrahedronGeometry(s, 1);
       else if (shape === 'spike') geometry = new THREE.OctahedronGeometry(s, 0);
       else if (shape === 'sharp') geometry = new THREE.TetrahedronGeometry(s, 0);
       else if (shape === 'flat') geometry = new THREE.BoxGeometry(s*5, s/2, s);
       else if (shape === 'long') geometry = new THREE.BoxGeometry(s/2, s/2, s*8);
+      else if (shape === 'cone') {
+          geometry = new THREE.ConeGeometry(s * 3.5, s * 10, 8);
+          geometry.rotateX(Math.PI); // Flips the cone so the point is at the bottom
+      }
       else geometry = new THREE.SphereGeometry(s, 8, 8);
 
       const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.6, roughness: 0.8 });
       const mesh = new THREE.Mesh(geometry, mat);
       mesh.position.copy(pos);
+      
+      // CHANGED: Cones bypass the lookAt function so they stay upright
       if (['rock','pebble','spike'].includes(shape)) mesh.rotation.set(Math.random()*3, Math.random()*3, Math.random()*3);
-      else mesh.lookAt(pos.clone().add(velDir));
+      else if (shape !== 'cone') mesh.lookAt(pos.clone().add(velDir));
       
       scene.add(mesh);
       projectiles.push({ mesh, velocity: velDir.multiplyScalar(speed), gravity, life, dmg, shape });
@@ -377,7 +389,10 @@
         const p = projectiles[i];
         p.mesh.position.addScaledVector(p.velocity, delta);
         p.velocity.y -= p.gravity;
+        
+        // CHANGED: Spun the rock around randomly, but made the cone spin violently on the Y axis like a tornado
         if (['rock','pebble','spike'].includes(p.shape)) { p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1; }
+        if (p.shape === 'cone') { p.mesh.rotation.y += 0.6; }
 
         p.life--;
         if (p.mesh.position.y <= 0 || p.life <= 0) { scene.remove(p.mesh); projectiles.splice(i, 1); continue; }
@@ -387,11 +402,17 @@
             const localPos = p.mesh.position.clone();
             solidWalls[w].mesh.worldToLocal(localPos);
             if (Math.abs(localPos.x) <= 3.0 && Math.abs(localPos.y) <= 2.0 && Math.abs(localPos.z) <= 0.5) {
-                hit = true; solidWalls[w].hp -= p.dmg;
+                hit = true; 
+                
+                // CHANGED: Wall now loses 1 hit per collision regardless of damage
+                solidWalls[w].hitsLeft -= 1; 
+                
                 solidWalls[w].mesh.material.color.setHex(0xffaaaa);
                 const flashedMesh = solidWalls[w].mesh;
                 setTimeout(()=> { if(flashedMesh.parent) flashedMesh.material.color.setHex(0x555555); }, 50);
-                if(solidWalls[w].hp <= 0) { scene.remove(solidWalls[w].mesh); solidWalls.splice(w, 1); }
+                
+                // CHANGED: Removed if hits left hits 0
+                if(solidWalls[w].hitsLeft <= 0) { scene.remove(solidWalls[w].mesh); solidWalls.splice(w, 1); }
                 break;
             }
         }
