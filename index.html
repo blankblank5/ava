@@ -5,10 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Elemental Game</title>
   <style>
-    body { margin: 0; overflow: hidden; background-color: #87ceeb; }
+    body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: sans-serif; }
+    
+    /* --- Start Screen Styles --- */
+    #start-screen {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;
+    }
+    .el-btn {
+      padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1s;
+    }
+    .el-btn:hover { transform: scale(1.05); }
   </style>
 </head>
 <body>
+
+  <div id="start-screen">
+    <h1 style="font-size: 50px; margin-bottom: 10px; color: #fff; text-shadow: 0 0 10px #fff;">ELEMENTAL ARENA</h1>
+    <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="15" style="padding: 15px; font-size: 20px; margin-bottom: 30px; text-align: center; border-radius: 5px; border: none; width: 300px;">
+    
+    <h2>Select Your Element</h2>
+    <div style="display: flex; gap: 15px;">
+      <button class="el-btn" id="btn-air" style="background: #ffffff; color: black;">AIR</button>
+      <button class="el-btn" id="btn-earth" style="background: #8b4513; color: white;">EARTH</button>
+      <button class="el-btn" id="btn-fire" style="background: #ff4500; color: white;">FIRE</button>
+      <button class="el-btn" id="btn-water" style="background: #0088ff; color: white;">WATER</button>
+    </div>
+  </div>
+
   <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
 
@@ -17,11 +41,20 @@
     gui.innerHTML = `
       <div style="position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: difference; z-index: 10;"></div>
       
-      <div style="position: absolute; bottom: 20px; left: 20px; color: white; font-family: sans-serif; text-shadow: 2px 2px 0 #000; pointer-events: none; user-select: none;">
-        <div style="margin-bottom: 15px;">
-          <h3 style="margin:0; color: yellow; font-size: 24px;">LVL <span id="lvl-display">1</span></h3>
-          <div style="width: 200px; height: 10px; background: #333; margin-top: 5px; border: 1px solid white;">
-            <div id="xp-bar" style="width: 0%; height: 100%; background: lime; transition: width 0.2s;"></div>
+      <div style="position: absolute; bottom: 20px; left: 20px; color: white; text-shadow: 2px 2px 0 #000; pointer-events: none; user-select: none; display: none;" id="game-ui">
+        
+        <div style="margin-bottom: 10px;">
+          <h2 id="display-name" style="margin: 0; font-size: 20px; color: #ddd;">Player</h2>
+          
+          <div style="width: 250px; height: 15px; background: #500; margin-top: 5px; border: 2px solid #222;">
+            <div id="hp-bar" style="width: 100%; height: 100%; background: #ff2222; transition: width 0.2s;"></div>
+          </div>
+          
+          <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+            <h3 style="margin:0; color: yellow; font-size: 18px;">LVL <span id="lvl-display">1</span></h3>
+            <div style="width: 190px; height: 8px; background: #333; border: 1px solid white;">
+              <div id="xp-bar" style="width: 0%; height: 100%; background: lime; transition: width 0.2s;"></div>
+            </div>
           </div>
         </div>
 
@@ -40,9 +73,9 @@
     // --- Scene Setup ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.Fog(0x87ceeb, 20, 120);
+    scene.fog = new THREE.Fog(0x87ceeb, 20, 150);
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
@@ -56,14 +89,14 @@
     scene.add(light);
 
     // --- Environment ---
-    const floorGeo = new THREE.PlaneGeometry(300, 300);
+    const floorGeo = new THREE.PlaneGeometry(2000, 2000);
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x33aa33 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    const grid = new THREE.GridHelper(300, 150, 0x000000, 0x225522);
+    const grid = new THREE.GridHelper(2000, 500, 0x000000, 0x225522);
     grid.position.y = 0.05;
     scene.add(grid);
 
@@ -72,12 +105,8 @@
     const solidWalls = [];
     const projectiles = [];
 
-    // Dummies
-    const dummyGeo = new THREE.BoxGeometry(1, 2, 1);
-    const dummyMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-
     function createDummy() {
-      const dummy = new THREE.Mesh(dummyGeo, dummyMat.clone());
+      const dummy = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
       dummy.position.set(Math.random() * 60 - 30, 1, Math.random() * -40 - 10);
       dummy.castShadow = true;
       scene.add(dummy);
@@ -93,8 +122,7 @@
           { name: 'Air Shot',   dmg: 12,  cd: 300,  speed: 60, grav: 0.0, life: 300, shape: 'sharp' },
           { name: 'Wind Blade', dmg: 35,  cd: 2000, speed: 45, grav: 0.0, life: 300, shape: 'flat' },
           { name: 'Air Dash',   dmg: 0,   cd: 500,  type: 'dash' },
-          // CHANGED: Tornado shape is now 'cone'
-          { name: 'Tornado',    dmg: 8,   cd: 6000, speed: 20, grav: 0.0, life: 400, shape: 'cone', count: 6, spread: 0.5 }
+          { name: 'Tornado',    dmg: 20,  cd: 6000, speed: 20, grav: 0.0, life: 400, shape: 'cone', count: 1, spread: 0 }
         ]
       },
       EARTH: { 
@@ -126,24 +154,28 @@
       }
     };
 
-    let currentElement = ELEMENTS.AIR;
-    const cooldowns = {
-      AIR: [0, 0, 0, 0], EARTH: [0, 0, 0, 0], FIRE: [0, 0, 0, 0], WATER: [0, 0, 0, 0]
-    };
-
-    // --- Player State ---
+    // --- Player State & Setup ---
+    let isGameStarted = false;
+    let playerName = "Player";
+    let playerHP = 100, maxHP = 100;
     let level = 1, currentXP = 0, xpRequired = 100, airCharges = 3, isAirCoolingDown = false;
+    let currentElement = ELEMENTS.AIR;
+    const cooldowns = { AIR: [0,0,0,0], EARTH: [0,0,0,0], FIRE: [0,0,0,0], WATER: [0,0,0,0] };
 
-    // --- Hands ---
-    const handMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    // --- Player Body (Ready for Multiplayer) ---
+    const bodyGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.6, 16);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+    const playerBody = new THREE.Mesh(bodyGeo, bodyMat);
+    playerBody.castShadow = true;
+    scene.add(playerBody);
+
     const handGeo = new THREE.BoxGeometry(0.3, 0.3, 0.8);
+    const handMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
     const leftHand = new THREE.Mesh(handGeo, handMat.clone());
     const rightHand = new THREE.Mesh(handGeo, handMat.clone());
-    leftHand.position.set(-1.0, -0.5, -0.8);
-    rightHand.position.set(1.0, -0.5, -0.8);
+    leftHand.position.set(-1.0, -0.5, -0.8); rightHand.position.set(1.0, -0.5, -0.8);
     const handGroup = new THREE.Group();
-    handGroup.add(leftHand);
-    handGroup.add(rightHand);
+    handGroup.add(leftHand); handGroup.add(rightHand);
     scene.add(handGroup);
 
     // --- Controls ---
@@ -151,7 +183,28 @@
     let isSprinting = false, canJump = true, velocityY = 0, yaw = 0, pitch = 0, moveTimer = 0;
     let playerVelocity = new THREE.Vector3(); 
 
-    document.body.addEventListener('click', () => document.body.requestPointerLock());
+    // --- Start Menu Logic ---
+    function initGame(elementKey) {
+      const nameInput = document.getElementById('player-name-input').value.trim();
+      playerName = nameInput !== "" ? nameInput : "Player";
+      document.getElementById('display-name').innerText = playerName;
+      
+      switchElement(ELEMENTS[elementKey]);
+      
+      document.getElementById('start-screen').style.display = 'none';
+      document.getElementById('game-ui').style.display = 'block';
+      isGameStarted = true;
+      document.body.requestPointerLock();
+    }
+
+    document.getElementById('btn-air').addEventListener('click', () => initGame('AIR'));
+    document.getElementById('btn-earth').addEventListener('click', () => initGame('EARTH'));
+    document.getElementById('btn-fire').addEventListener('click', () => initGame('FIRE'));
+    document.getElementById('btn-water').addEventListener('click', () => initGame('WATER'));
+
+    // --- Event Listeners ---
+    document.body.addEventListener('click', () => { if(isGameStarted) document.body.requestPointerLock(); });
+    
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === document.body) {
         yaw -= e.movementX * 0.002;
@@ -165,6 +218,7 @@
 
     document.addEventListener('mousedown', (e) => { if(document.pointerLockElement === document.body && e.button === 0) useMove(0); });
     document.addEventListener('keydown', (e) => {
+      if (!isGameStarted) return;
       if (e.code === 'KeyQ') useMove(1); 
       if (e.code === 'KeyE') useMove(2);
       if (e.code === 'KeyR') useMove(3);
@@ -174,11 +228,6 @@
       if (e.code === 'KeyD') moveRight = true;
       if (e.code === 'ShiftLeft') isSprinting = true;
       if (e.code === 'Space' && canJump) { velocityY = 5.0; canJump = false; }
-      
-      if (e.key === '1') switchElement(ELEMENTS.AIR);
-      if (e.key === '2') switchElement(ELEMENTS.EARTH);
-      if (e.key === '3') switchElement(ELEMENTS.FIRE);
-      if (e.key === '4') switchElement(ELEMENTS.WATER);
     });
 
     document.addEventListener('keyup', (e) => {
@@ -196,7 +245,24 @@
       document.getElementById('el-name').style.color = '#' + elem.color.toString(16);
       leftHand.material.color.setHex(elem.color);
       rightHand.material.color.setHex(elem.color);
+      playerBody.material.color.setHex(elem.color); // Change body color to match element
       updateUI();
+    }
+
+    function takeDamage(amount) {
+      playerHP -= amount;
+      if(playerHP < 0) playerHP = 0;
+      document.getElementById('hp-bar').style.width = (playerHP / maxHP * 100) + '%';
+      
+      const flash = document.createElement('div');
+      flash.style.cssText = "position:absolute; inset:0; background:red; opacity:0.3; pointer-events:none;";
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 100);
+
+      if(playerHP <= 0) {
+          alert("You Died! Refresh to respawn.");
+          document.exitPointerLock();
+      }
     }
 
     function updateUI() {
@@ -210,13 +276,9 @@
         const readyTime = cooldowns[currentElement.name][i];
         const remaining = Math.max(0, Math.ceil((readyTime - Date.now()) / 1000));
         
-        if (remaining > 0) {
-            el.style.color = "gray";
-            el.innerText = text + ` (${remaining}s)`;
-        } else {
-            el.style.color = "white";
-            el.innerText = text;
-        }
+        if (remaining > 0) { el.style.color = "gray"; el.innerText = text + ` (${remaining}s)`; } 
+        else { el.style.color = "white"; el.innerText = text; }
+        
         if (currentElement.name === 'AIR' && i === 2) {
            el.innerHTML = `[E] Air Dash (<span style="color:${isAirCoolingDown?'red':'white'}">${airCharges}</span>/3)`;
         }
@@ -226,9 +288,9 @@
     function addXP(amount) {
       currentXP += amount;
       if (currentXP >= xpRequired) {
-        currentXP -= xpRequired;
-        level++;
-        xpRequired = Math.floor(xpRequired * 1.2);
+        currentXP -= xpRequired; level++; xpRequired = Math.floor(xpRequired * 1.2);
+        maxHP += 10; playerHP = maxHP; // Heal on level up
+        document.getElementById('hp-bar').style.width = '100%';
         const flash = document.createElement('div');
         flash.style.cssText = "position:absolute; inset:0; background:white; opacity:0.6; pointer-events:none;";
         document.body.appendChild(flash);
@@ -257,42 +319,29 @@
       const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
       const spawnPos = camera.position.clone().addScaledVector(direction, 1);
 
+      if (stats.name === 'Tornado') { playerVelocity.addScaledVector(direction, -45); velocityY = 8; }
+
       if (stats.type === 'dash') {
         if (isAirCoolingDown || airCharges <= 0) return;
         airCharges--;
-        if (direction.y > 0.4) {
-           velocityY = 25; playerVelocity.addScaledVector(direction.clone().setY(0).normalize(), 10);
-        } else {
-           playerVelocity.addScaledVector(direction, 40); velocityY = 5; 
-        }
-        if (airCharges <= 0) {
-          isAirCoolingDown = true;
-          setTimeout(() => { airCharges = 3; isAirCoolingDown = false; updateUI(); }, 3000);
-        }
+        if (direction.y > 0.4) { velocityY = 25; playerVelocity.addScaledVector(direction.clone().setY(0).normalize(), 10); } 
+        else { playerVelocity.addScaledVector(direction, 40); velocityY = 5; }
+        if (airCharges <= 0) { isAirCoolingDown = true; setTimeout(() => { airCharges = 3; isAirCoolingDown = false; updateUI(); }, 3000); }
         updateUI(); return;
       }
 
       if (stats.type === 'wall') {
         if (solidWalls.length >= 3) { scene.remove(solidWalls.shift().mesh); }
-        const wallGeo = new THREE.BoxGeometry(6, 4, 1);
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
-        const wall = new THREE.Mesh(wallGeo, wallMat);
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 1), new THREE.MeshStandardMaterial({ color: 0x555555 }));
         const wallPos = camera.position.clone().addScaledVector(direction.setY(0).normalize(), 4);
-        wallPos.y = 2; wall.position.copy(wallPos);
-        wall.lookAt(camera.position.x, wallPos.y, camera.position.z);
-        scene.add(wall); 
-        
-        // CHANGED: Wall now has exactly 5 hits instead of health points
-        solidWalls.push({ mesh: wall, hitsLeft: 5 }); 
+        wallPos.y = 2; wall.position.copy(wallPos); wall.lookAt(camera.position.x, wallPos.y, camera.position.z);
+        scene.add(wall); solidWalls.push({ mesh: wall, hitsLeft: 5 }); 
         return;
       }
 
       if (stats.type === 'meteor') {
           let target = camera.position.clone().addScaledVector(direction, 40);
-          if (direction.y < -0.1) {
-              const t = -camera.position.y / direction.y;
-              if(t > 0) target = camera.position.clone().addScaledVector(direction, t);
-          }
+          if (direction.y < -0.1) { const t = -camera.position.y / direction.y; if(t > 0) target = camera.position.clone().addScaledVector(direction, t); }
           const skyPos = target.clone().add(new THREE.Vector3(0, 50, 0));
           createProjectile(skyPos, target.sub(skyPos).normalize(), 4.0, 0xff2200, 40, 0, 'spike', 120, 200);
           return;
@@ -302,9 +351,7 @@
         setTimeout(() => {
             let finalDir = direction.clone();
             if (stats.spread > 0) {
-                finalDir.x += (Math.random() - 0.5) * stats.spread;
-                finalDir.y += (Math.random() - 0.5) * stats.spread;
-                finalDir.z += (Math.random() - 0.5) * stats.spread;
+                finalDir.x += (Math.random() - 0.5) * stats.spread; finalDir.y += (Math.random() - 0.5) * stats.spread; finalDir.z += (Math.random() - 0.5) * stats.spread;
                 finalDir.normalize();
             }
             createProjectile(spawnPos, finalDir, 0.2, currentElement.color, stats.speed, stats.grav, stats.shape, stats.dmg, stats.life, stats.scale);
@@ -314,44 +361,29 @@
 
     function createProjectile(pos, velDir, size, color, speed, gravity, shape, dmg, life, scaleMult=1) {
       let s = size * scaleMult, geometry;
-      
-      // CHANGED: Added the cone geometry, scaled up slightly, and pointed downwards
       if (shape === 'rock') geometry = new THREE.DodecahedronGeometry(s * 2, 0); 
       else if (shape === 'pebble') geometry = new THREE.TetrahedronGeometry(s, 1);
       else if (shape === 'spike') geometry = new THREE.OctahedronGeometry(s, 0);
       else if (shape === 'sharp') geometry = new THREE.TetrahedronGeometry(s, 0);
       else if (shape === 'flat') geometry = new THREE.BoxGeometry(s*5, s/2, s);
       else if (shape === 'long') geometry = new THREE.BoxGeometry(s/2, s/2, s*8);
-      else if (shape === 'cone') {
-          geometry = new THREE.ConeGeometry(s * 3.5, s * 10, 8);
-          geometry.rotateX(Math.PI); // Flips the cone so the point is at the bottom
-      }
+      else if (shape === 'cone') { geometry = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geometry.rotateX(Math.PI); }
       else geometry = new THREE.SphereGeometry(s, 8, 8);
 
-      const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.6, roughness: 0.8 });
-      const mesh = new THREE.Mesh(geometry, mat);
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.6, roughness: 0.8 }));
       mesh.position.copy(pos);
-      
-      // CHANGED: Cones bypass the lookAt function so they stay upright
       if (['rock','pebble','spike'].includes(shape)) mesh.rotation.set(Math.random()*3, Math.random()*3, Math.random()*3);
       else if (shape !== 'cone') mesh.lookAt(pos.clone().add(velDir));
-      
-      scene.add(mesh);
-      projectiles.push({ mesh, velocity: velDir.multiplyScalar(speed), gravity, life, dmg, shape });
+      scene.add(mesh); projectiles.push({ mesh, velocity: velDir.multiplyScalar(speed), gravity, life, dmg, shape });
     }
 
     // --- Main Loop ---
     function animate() {
       requestAnimationFrame(animate);
+      if (!isGameStarted) return; // Freeze game if start screen is active
+
       const delta = 0.016;
-
       if (Date.now() % 10 === 0) updateUI();
-
-      const snap = 2;
-      const gridX = Math.round(camera.position.x / snap) * snap;
-      const gridZ = Math.round(camera.position.z / snap) * snap;
-      floor.position.set(gridX, 0, gridZ);
-      grid.position.set(gridX, 0.05, gridZ);
 
       if (document.pointerLockElement === document.body) {
         const fwd = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
@@ -373,11 +405,8 @@
       for(let w of solidWalls) {
           const localPos = nextPos.clone();
           w.mesh.worldToLocal(localPos);
-          if (Math.abs(localPos.x) <= 3.5 && localPos.y >= -3.0 && localPos.y <= 2.5 && Math.abs(localPos.z) <= 1.0) { 
-              wallHit = true; break; 
-          }
+          if (Math.abs(localPos.x) <= 3.5 && localPos.y >= -3.0 && localPos.y <= 2.5 && Math.abs(localPos.z) <= 1.0) { wallHit = true; break; }
       }
-      
       if(!wallHit) { camera.position.x += playerVelocity.x * delta * 3; camera.position.z += playerVelocity.z * delta * 3; }
       else { playerVelocity.set(0,0,0); }
 
@@ -385,12 +414,14 @@
       camera.position.y += velocityY * delta;
       if (camera.position.y < 1.7) { camera.position.y = 1.7; velocityY = 0; canJump = true; }
 
+      // Update Player Body to follow camera (Multiplayer prep)
+      playerBody.position.copy(camera.position);
+      playerBody.position.y -= 0.8; // Move body down so camera is at "head" height
+      playerBody.rotation.y = yaw;
+
       for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i];
-        p.mesh.position.addScaledVector(p.velocity, delta);
-        p.velocity.y -= p.gravity;
-        
-        // CHANGED: Spun the rock around randomly, but made the cone spin violently on the Y axis like a tornado
+        p.mesh.position.addScaledVector(p.velocity, delta); p.velocity.y -= p.gravity;
         if (['rock','pebble','spike'].includes(p.shape)) { p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1; }
         if (p.shape === 'cone') { p.mesh.rotation.y += 0.6; }
 
@@ -399,19 +430,10 @@
 
         let hit = false;
         for(let w = solidWalls.length - 1; w >= 0; w--) {
-            const localPos = p.mesh.position.clone();
-            solidWalls[w].mesh.worldToLocal(localPos);
+            const localPos = p.mesh.position.clone(); solidWalls[w].mesh.worldToLocal(localPos);
             if (Math.abs(localPos.x) <= 3.0 && Math.abs(localPos.y) <= 2.0 && Math.abs(localPos.z) <= 0.5) {
-                hit = true; 
-                
-                // CHANGED: Wall now loses 1 hit per collision regardless of damage
-                solidWalls[w].hitsLeft -= 1; 
-                
-                solidWalls[w].mesh.material.color.setHex(0xffaaaa);
-                const flashedMesh = solidWalls[w].mesh;
-                setTimeout(()=> { if(flashedMesh.parent) flashedMesh.material.color.setHex(0x555555); }, 50);
-                
-                // CHANGED: Removed if hits left hits 0
+                hit = true; solidWalls[w].hitsLeft -= 1; solidWalls[w].mesh.material.color.setHex(0xffaaaa);
+                const flashedMesh = solidWalls[w].mesh; setTimeout(()=> { if(flashedMesh.parent) flashedMesh.material.color.setHex(0x555555); }, 50);
                 if(solidWalls[w].hitsLeft <= 0) { scene.remove(solidWalls[w].mesh); solidWalls.splice(w, 1); }
                 break;
             }
@@ -420,41 +442,28 @@
         if (!hit) {
             for (let d = dummies.length - 1; d >= 0; d--) {
                 if (p.mesh.position.distanceTo(dummies[d].mesh.position) < 2.5) {
-                    dummies[d].hp -= p.dmg; hit = true;
-                    dummies[d].mesh.material.color.setHex(0xffffff);
+                    dummies[d].hp -= p.dmg; hit = true; dummies[d].mesh.material.color.setHex(0xffffff);
                     setTimeout(() => dummies[d].mesh.material.color.setHex(0xff0000), 100);
-                    if (dummies[d].hp <= 0) {
-                        scene.remove(dummies[d].mesh); dummies.splice(d, 1); addXP(25);
-                        setTimeout(createDummy, 3000);
-                    } else { dummies[d].velocityY = 0.2; }
+                    if (dummies[d].hp <= 0) { scene.remove(dummies[d].mesh); dummies.splice(d, 1); addXP(25); setTimeout(createDummy, 3000); } 
+                    else { dummies[d].velocityY = 0.2; }
                     break;
                 }
             }
         }
-
         if (hit) { scene.remove(p.mesh); projectiles.splice(i, 1); }
       }
 
-      dummies.forEach(d => {
-          d.mesh.position.y += d.velocityY; d.velocityY -= 0.01;
-          if (d.mesh.position.y < 1) { d.mesh.position.y = 1; d.velocityY = 0; }
-      });
+      dummies.forEach(d => { d.mesh.position.y += d.velocityY; d.velocityY -= 0.01; if (d.mesh.position.y < 1) { d.mesh.position.y = 1; d.velocityY = 0; } });
 
       handGroup.position.copy(camera.position); handGroup.rotation.copy(camera.rotation);
       if ((moveForward||moveBackward||moveLeft||moveRight) && canJump) {
-          moveTimer += 0.15;
-          leftHand.position.y = -0.5 + Math.sin(moveTimer)*0.05;
-          rightHand.position.y = -0.5 + Math.sin(moveTimer)*0.05;
+          moveTimer += 0.15; leftHand.position.y = -0.5 + Math.sin(moveTimer)*0.05; rightHand.position.y = -0.5 + Math.sin(moveTimer)*0.05;
       }
-
       renderer.render(scene, camera);
     }
     animate();
 
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
   </script>
 </body>
 </html>
