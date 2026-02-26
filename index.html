@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Elemental Game</title>
+  <title>Elemental Arena - Multiplayer</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: sans-serif; }
     #start-screen {
       position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
       display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;
     }
-    .el-btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1s; }
+    .el-btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1s; margin: 5px; }
     .el-btn:hover { transform: scale(1.05); }
   </style>
 </head>
@@ -33,6 +34,9 @@
   <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
 
+    // Connect to your live Render server
+    const socket = io('https://ava-pwjs.onrender.com');
+
     // --- GUI Setup ---
     const gui = document.createElement('div');
     gui.innerHTML = `
@@ -41,7 +45,7 @@
         <div style="margin-bottom: 10px;">
           <h2 id="display-name" style="margin: 0; font-size: 20px; color: #ddd;">Player</h2>
           <div style="width: 250px; height: 15px; background: #500; margin-top: 5px; border: 2px solid #222;">
-            <div id="hp-bar" style="width: 100%; height: 100%; background: #ff2222; transition: width 0.2s;"></div>
+            <div id="hp-bar" style="width: 100%; height: 100%; background: #ff2222;"></div>
           </div>
         </div>
         <h2 id="el-name" style="margin: 0; font-size: 30px;">AIR</h2>
@@ -51,17 +55,18 @@
           <div id="slot-2" style="margin-bottom:4px;">[E] Dash</div>
           <div id="slot-3" style="margin-bottom:4px;">[R] Tornado</div>
         </div>
-        <div id="cooldown-msg" style="color: red; font-weight: bold; opacity: 0; transition: opacity 0.1s; margin-top: 5px;">ON COOLDOWN!</div>
       </div>
     `;
     document.body.appendChild(gui);
 
-    // --- Scene Setup ---
+    // --- Scene & Camera Setup ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
     scene.fog = new THREE.Fog(0x87ceeb, 20, 150);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.position.y = 2; // THIS FIXES YOUR CAMERA HEIGHT!
+
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
@@ -71,6 +76,7 @@
     scene.add(new THREE.AmbientLight(0x404040, 1.5));
     scene.add(light);
 
+    // The floor
     const floorGeo = new THREE.PlaneGeometry(2000, 2000);
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x33aa33 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -81,44 +87,80 @@
     grid.position.y = 0.05;
     scene.add(grid);
 
-    // --- Game Logic ---
+    // --- Multiplayer Logic ---
     let isGameStarted = false;
-    let playerName = "Player";
-    let yaw = 0, pitch = 0;
-    
-    // VALIDATION RULES
-    const takenNames = ["admin", "guest", "test"]; 
-    const mockActivePlayers = ["alex", "sarah"]; 
-    const badWords = ["badword1", "swearword", "curseword", "crap"]; 
+    let playerName = "";
+    const otherPlayers = {}; 
 
+    // Builds a block for other players
+    function addOtherPlayer(playerData) {
+      const geo = new THREE.BoxGeometry(1, 2, 1);
+      let color = 0xffffff;
+      if(playerData.element === 'EARTH') color = 0x8b4513;
+      if(playerData.element === 'FIRE') color = 0xff4500;
+      if(playerData.element === 'WATER') color = 0x0088ff;
+      
+      const mat = new THREE.MeshStandardMaterial({ color: color });
+      const mesh = new THREE.Mesh(geo, mat);
+      
+      mesh.position.set(playerData.x, playerData.y, playerData.z);
+      scene.add(mesh);
+      otherPlayers[playerData.id] = mesh;
+    }
+
+    // Joining the game
     function initGame(elementKey) {
-      const nameInput = document.getElementById('player-name-input').value.trim();
+      playerName = document.getElementById('player-name-input').value.trim();
+      socket.emit('joinGame', { name: playerName, element: elementKey });
+    }
+
+    socket.on('joinError', (msg) => {
       const errorMsg = document.getElementById('name-error');
-      const lowerName = nameInput.toLowerCase();
-      
-      if (nameInput === "") { errorMsg.innerText = "Name cannot be blank!"; errorMsg.style.display = "block"; return; }
-      if (/\d/.test(nameInput)) { errorMsg.innerText = "Name cannot contain numbers!"; errorMsg.style.display = "block"; return; }
-      for (let word of badWords) {
-          if (lowerName.includes(word)) { errorMsg.innerText = "Please choose a more appropriate name."; errorMsg.style.display = "block"; return; }
-      }
-      if (takenNames.includes(lowerName) || mockActivePlayers.includes(lowerName)) {
-          errorMsg.innerText = "Someone is already using that name!"; errorMsg.style.display = "block"; return;
-      }
-      
-      errorMsg.style.display = "none";
-      playerName = nameInput;
+      errorMsg.innerText = msg;
+      errorMsg.style.display = "block";
+    });
+
+    socket.on('joinSuccess', (playerData) => {
       document.getElementById('display-name').innerText = playerName;
+      document.getElementById('el-name').innerText = playerData.element;
       document.getElementById('start-screen').style.display = 'none';
       document.getElementById('game-ui').style.display = 'block';
       isGameStarted = true;
       document.body.requestPointerLock();
-    }
+    });
 
+    socket.on('currentPlayers', (players) => {
+      Object.keys(players).forEach((id) => {
+        if (players[id].id !== socket.id) addOtherPlayer(players[id]);
+      });
+    });
+
+    socket.on('newPlayer', (playerData) => {
+      addOtherPlayer(playerData);
+    });
+
+    socket.on('playerMoved', (playerData) => {
+      if (otherPlayers[playerData.id]) {
+        otherPlayers[playerData.id].position.set(playerData.x, playerData.y, playerData.z);
+        otherPlayers[playerData.id].rotation.y = playerData.yaw;
+      }
+    });
+
+    socket.on('playerDisconnected', (id) => {
+      if (otherPlayers[id]) {
+        scene.remove(otherPlayers[id]);
+        delete otherPlayers[id];
+      }
+    });
+
+    // Start Buttons
     document.getElementById('btn-air').addEventListener('click', () => initGame('AIR'));
     document.getElementById('btn-earth').addEventListener('click', () => initGame('EARTH'));
     document.getElementById('btn-fire').addEventListener('click', () => initGame('FIRE'));
     document.getElementById('btn-water').addEventListener('click', () => initGame('WATER'));
 
+    // --- Controls ---
+    let yaw = 0, pitch = 0;
     document.body.addEventListener('click', () => { if(isGameStarted) document.body.requestPointerLock(); });
     
     document.addEventListener('mousemove', (e) => {
@@ -129,9 +171,48 @@
       }
     });
 
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyW') moveForward = true; if (e.code === 'KeyS') moveBackward = true;
+      if (e.code === 'KeyA') moveLeft = true; if (e.code === 'KeyD') moveRight = true;
+    });
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'KeyW') moveForward = false; if (e.code === 'KeyS') moveBackward = false;
+      if (e.code === 'KeyA') moveLeft = false; if (e.code === 'KeyD') moveRight = false;
+    });
+
+    const clock = new THREE.Clock();
+
     function animate() {
       requestAnimationFrame(animate);
       if (!isGameStarted) return;
+
+      const delta = clock.getDelta();
+      const speed = 20 * delta;
+
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      dir.y = 0; dir.normalize();
+      
+      const right = new THREE.Vector3();
+      right.crossVectors(camera.up, dir).normalize();
+
+      let moved = false;
+      if (moveForward) { camera.position.addScaledVector(dir, speed); moved = true; }
+      if (moveBackward) { camera.position.addScaledVector(dir, -speed); moved = true; }
+      if (moveLeft) { camera.position.addScaledVector(right, speed); moved = true; }
+      if (moveRight) { camera.position.addScaledVector(right, -speed); moved = true; }
+
+      // Send movement to the server
+      if (moved || yaw !== 0) {
+         socket.emit('move', {
+            x: camera.position.x,
+            y: camera.position.y - 1, // Draw the body slightly lower than the camera eyes
+            z: camera.position.z,
+            yaw: yaw
+         });
+      }
+
       renderer.render(scene, camera);
     }
     animate();
