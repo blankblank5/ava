@@ -160,7 +160,6 @@
     const barGeo = new THREE.CylinderGeometry(0.2, 0.2, 10);
     const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 });
     
-    // Create bars around the perimeter
     for(let x = -5.5; x <= 5.5; x += 2) {
         let bar1 = new THREE.Mesh(barGeo, grayMat); bar1.position.set(x, 5, -5.5); jailGroup.add(bar1);
         let bar2 = new THREE.Mesh(barGeo, grayMat); bar2.position.set(x, 5, 5.5); jailGroup.add(bar2);
@@ -236,7 +235,7 @@
     };
 
     function takeDamage(amount) {
-      if (window.godMode) return; // Ignore damage if GodMode is on
+      if (window.godMode) return; 
       playerHP -= amount;
       if(playerHP < 0) playerHP = 0;
       document.getElementById('hp-bar').style.width = (playerHP / maxHP * 100) + '%';
@@ -342,6 +341,17 @@
       }
     });
 
+    // --- Re-lock Mouse Failsafe ---
+    document.addEventListener('click', (e) => {
+      if (!isGameStarted) return;
+      const panelOpen = document.getElementById('admin-panel').style.display === 'block';
+      const loginOpen = document.getElementById('admin-login').style.display === 'flex';
+      
+      if (!panelOpen && !loginOpen && document.pointerLockElement !== document.body) {
+          document.body.requestPointerLock();
+      }
+    });
+
     document.addEventListener('mousedown', (e) => { 
         if(document.pointerLockElement === document.body && e.button === 0) useMove(0); 
     });
@@ -351,18 +361,29 @@
       
       // Admin Panel Toggle
       if (e.code === 'KeyM' || e.code === 'KeyZ') {
-        document.exitPointerLock();
         if (window.sessionRole !== "player") {
            const panel = document.getElementById('admin-panel');
-           panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-           populatePlayerList();
+           if (panel.style.display === 'none' || panel.style.display === '') {
+               document.exitPointerLock();
+               panel.style.display = 'block';
+               populatePlayerList();
+           } else {
+               panel.style.display = 'none';
+               document.body.requestPointerLock(); 
+           }
         } else {
-           document.getElementById('admin-login').style.display = 'flex';
+           const login = document.getElementById('admin-login');
+           if (login.style.display === 'none' || login.style.display === '') {
+               document.exitPointerLock();
+               login.style.display = 'flex';
+           } else {
+               login.style.display = 'none';
+               document.body.requestPointerLock();
+           }
         }
         return;
       }
 
-      // Only allow movement/spells if locked in and not frozen
       if (document.pointerLockElement === document.body && !isFrozen) {
           if (e.code === 'KeyQ') useMove(1); 
           if (e.code === 'KeyE') useMove(2);
@@ -391,7 +412,7 @@
       else if (pass === "caleb1") { window.sessionRole = "owner"; document.getElementById('panel-title').innerText = "Owner Panel"; } 
       else { alert("Incorrect Password"); return; }
       
-      socket.emit('setRole', window.sessionRole); // Tell server my role
+      socket.emit('setRole', window.sessionRole);
       document.getElementById('admin-login').style.display = 'none';
       document.getElementById('admin-panel').style.display = 'block';
       populatePlayerList();
@@ -442,7 +463,6 @@
         for (let id in players) {
             if (id !== socket.id) {
                 otherPlayers[id] = players[id];
-                // In a full game, you'd spawn 3D models for them here
             }
         }
     });
@@ -477,13 +497,12 @@
       if(!wallHit && !isFrozen) { camera.position.x += playerVelocity.x * delta * 3; camera.position.z += playerVelocity.z * delta * 3; }
       else { playerVelocity.set(0,0,0); }
 
-      velocityY -= 15.0 * delta; // Gravity
+      velocityY -= 15.0 * delta; 
       camera.position.y += velocityY * delta;
       
-      // Ground collision OR Jail Floor collision
       let floorHeight = 1.7;
       if (camera.position.y >= jailY && camera.position.x > -6 && camera.position.x < 6 && camera.position.z > -6 && camera.position.z < 6) {
-          floorHeight = jailY + 2; // Floor of jail
+          floorHeight = jailY + 2; 
       }
       
       if (camera.position.y < floorHeight) { camera.position.y = floorHeight; velocityY = 0; canJump = true; }
