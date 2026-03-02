@@ -10,6 +10,8 @@
     #start-screen { position: absolute; inset: 0; background: #111111; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
     .el-btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1s; }
     .el-btn:hover { transform: scale(1.05); }
+    
+    /* Fixed flex display for admin login */
     #admin-login { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9); z-index:200; flex-direction:column; align-items:center; justify-content:center; color:white; }
     #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.8); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:260px; }
     .admin-btn { width: 100%; margin-bottom: 5px; padding: 5px; cursor: pointer; font-weight: bold; }
@@ -23,12 +25,10 @@
 
     #flash-overlay { position: absolute; inset: 0; background: rgba(0, 50, 255, 0.25); pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 50; }
 
-    /* New Compass UI */
     #compass-container { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 400px; height: 30px; background: rgba(0,0,0,0.5); border: 2px solid #333; overflow: hidden; z-index: 10; display: none; }
     .compass-dot { position: absolute; top: 5px; width: 8px; height: 8px; background: white; border-radius: 50%; transform: translateX(-50%); }
     .compass-name { position: absolute; top: 15px; font-size: 10px; color: white; transform: translateX(-50%); white-space: nowrap; }
 
-    /* Floating Nametags */
     #nametags-container { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
     .nametag { position: absolute; color: white; font-weight: bold; font-size: 14px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; transform: translate(-50%, -100%); display: none; }
   </style>
@@ -37,13 +37,11 @@
 
   <div id="flash-overlay"></div>
   <div id="nametags-container"></div>
-
   <div id="compass-container"></div>
 
   <div id="start-screen">
     <h1 style="font-size: 50px; margin-bottom: 10px; color: #fff; text-shadow: 0 0 10px #fff;">ELEMENTAL ARENA</h1>
     <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="15" style="padding: 15px; font-size: 20px; margin-bottom: 10px; text-align: center; border-radius: 5px; border: none; width: 300px;">
-    <div id="name-error" style="color: #ff4444; font-weight: bold; margin-bottom: 20px; font-size: 18px; display: none;">Error</div>
     <h2>Select Your Element</h2>
     <div style="display: flex; gap: 15px;">
       <button class="el-btn" id="btn-air" style="background: #ffffff; color: black;">AIR</button>
@@ -107,7 +105,7 @@
   <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
 
-    const socket = io('https://ava-pwjs.onrender.com'); // UPDATE URL IF NEEDED
+    const socket = io('https://ava-pwjs.onrender.com');
 
     let isGameStarted = false;
     let myId = null;
@@ -148,7 +146,6 @@
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
     const grid = new THREE.GridHelper(2000, 500, 0x000000, 0x225522); grid.position.y = 0.05; scene.add(grid);
 
-    // Visible Solid Ground Jail
     const jailGroup = new THREE.Group();
     jailGroup.position.set(20, 0.05, 20);
     const plateGeo = new THREE.BoxGeometry(12, 0.5, 12);
@@ -165,8 +162,7 @@
     scene.add(myBody);
 
     window.initGame = (elementKey) => {
-      const playerName = document.getElementById('player-name-input').value.trim();
-      if (playerName === "") return;
+      const playerName = document.getElementById('player-name-input').value.trim() || "Player";
       socket.emit('joinGame', { name: playerName, element: elementKey });
       socket.on('joinSuccess', (data) => {
           myId = data.id;
@@ -194,18 +190,43 @@
 
     document.addEventListener('click', (e) => {
       if (!isGameStarted) return;
-      if (document.pointerLockElement !== document.body && document.getElementById('admin-panel').style.display !== 'block') document.body.requestPointerLock();
+      if (document.pointerLockElement !== document.body && document.getElementById('admin-panel').style.display !== 'block' && document.getElementById('admin-login').style.display !== 'flex') {
+          document.body.requestPointerLock();
+      }
     });
+    
     document.addEventListener('mousedown', (e) => { if(document.pointerLockElement === document.body && e.button === 0) socket.emit('useMove', 0); });
     
     document.addEventListener('keydown', (e) => {
       if (!isGameStarted) return;
+      
+      // FIXED ADMIN KEYBIND LOGIC
       if (e.code === 'KeyM' || e.code === 'KeyZ') {
-         const p = document.getElementById('admin-panel');
-         if (p.style.display === 'none' || p.style.display === '') { document.exitPointerLock(); p.style.display = 'block'; } 
-         else { p.style.display = 'none'; document.body.requestPointerLock(); }
+         const login = document.getElementById('admin-login');
+         const panel = document.getElementById('admin-panel');
+         
+         if (window.sessionRole === 'admin') {
+             // Already logged in, toggle panel
+             if (panel.style.display === 'none' || panel.style.display === '') {
+                 document.exitPointerLock();
+                 panel.style.display = 'block';
+             } else {
+                 panel.style.display = 'none';
+                 document.body.requestPointerLock();
+             }
+         } else {
+             // Not logged in, toggle login screen
+             if (login.style.display === 'none' || login.style.display === '') {
+                 document.exitPointerLock();
+                 login.style.display = 'flex';
+             } else {
+                 login.style.display = 'none';
+                 document.body.requestPointerLock();
+             }
+         }
          return;
       }
+
       if (document.pointerLockElement === document.body) {
           if (e.code === 'Digit1') socket.emit('switchElement', 'AIR');
           if (e.code === 'Digit2') socket.emit('switchElement', 'EARTH');
@@ -240,21 +261,33 @@
       }
       if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
       else if (data.shape === 'spike') geo = new THREE.ConeGeometry(s, s*4, 4);
-      else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s*2); // Tsunami/Wall
+      else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s*2); 
       else if (data.shape === 'cone') { geo = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geo.rotateX(Math.PI); }
-      else geo = new THREE.SphereGeometry(s, 8, 8);
+      else geo = new THREE.SphereGeometry(s, 8, 8); // Default fallback
       const mesh = new THREE.Mesh(geo, mat); scene.add(mesh); return mesh;
     }
 
-    // Admin UI Setup
-    window.checkAdminLogin = () => { /* Logic */ document.getElementById('admin-login').style.display='none'; document.getElementById('admin-panel').style.display='block'; window.sessionRole='admin'; socket.emit('setRole','admin'); };
+    // FIXED ADMIN LOGIN LOGIC
+    window.checkAdminLogin = () => { 
+        const pass = document.getElementById('admin-pass').value;
+        if (pass === 'admin' || pass === 'owner') {
+            document.getElementById('admin-login').style.display='none'; 
+            document.getElementById('admin-panel').style.display='block'; 
+            window.sessionRole='admin'; 
+            socket.emit('setRole','admin');
+            document.getElementById('admin-pass').value = ""; // Clear password field
+        } else {
+            alert("Incorrect Password!");
+        }
+    };
+    
     window.closeAdminLogin = () => { document.getElementById('admin-login').style.display='none'; document.body.requestPointerLock(); };
     window.sendAdminAction = (action) => { socket.emit('adminCommand', { action: action, targetId: document.getElementById('player-list').value }); };
     window.givePower = () => { socket.emit('adminCommand', { action: 'givePower', targetId: document.getElementById('player-list').value, value: document.getElementById('power-list').value }); };
 
     socket.on('death', () => { alert("You Died! Respawning..."); });
 
-    const tempV = new THREE.Vector3(); // Used for 3D to 2D projection
+    const tempV = new THREE.Vector3(); 
 
     socket.on('gameState', (state) => {
       if (!isGameStarted) return;
@@ -264,7 +297,20 @@
       overlay.style.opacity = (state.slowMo && state.slowMo.active && state.slowMo.owner !== myId) ? '1' : '0';
 
       const compass = document.getElementById('compass-container');
-      compass.innerHTML = ''; // Clear compass dots
+      compass.innerHTML = ''; 
+
+      // Update player dropdown in admin panel if needed
+      const playerDropdown = document.getElementById('player-list');
+      if (document.getElementById('admin-panel').style.display === 'block') {
+          const currentSelection = playerDropdown.value;
+          playerDropdown.innerHTML = '';
+          for (const id in state.players) {
+              const opt = document.createElement('option');
+              opt.value = id; opt.innerText = state.players[id].name + (id === myId ? " (You)" : "");
+              playerDropdown.appendChild(opt);
+          }
+          if (state.players[currentSelection]) playerDropdown.value = currentSelection;
+      }
 
       for (const id in state.players) {
         const p = state.players[id];
@@ -282,15 +328,12 @@
                 for(let i=0; i<4; i++) document.getElementById(`move${i}-name`).innerText = elInfo.moves[i].name;
             }
 
-            // Update Charges and Cooldown UI
             for(let i=0; i<4; i++) {
                 const max = ELEMENTS_UI[p.element].moves[i].maxCharges || 1;
                 const cdMax = ELEMENTS_UI[p.element].moves[i].cd || 1000;
                 
-                // Set charge text (e.g., "[3]")
                 document.getElementById(`ch${i}`).innerText = max > 1 ? `[${p.charges[i]}]` : "";
                 
-                // Draw cooldown shading if a charge is regenerating
                 if (p.charges[i] < max) {
                     const cdEnd = p.rechargeTimers[i];
                     const pct = cdEnd > now ? ((cdEnd - now) / cdMax) * 100 : 0;
@@ -300,7 +343,6 @@
                 }
             }
         } else {
-            // Player Models (Body + Head)
             if (!playerMeshes[id]) {
                 const group = new THREE.Group();
                 const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
@@ -308,7 +350,6 @@
                 const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat); head.position.y = 1.5;
                 group.add(body, head); scene.add(group); playerMeshes[id] = group;
                 
-                // Nametag DOM creation
                 const tag = document.createElement('div');
                 tag.className = 'nametag';
                 tag.innerText = p.name;
@@ -316,12 +357,11 @@
                 nametagElements[id] = tag;
             }
             playerMeshes[id].position.set(p.x, p.y, p.z);
-            playerMeshes[id].rotation.y = p.yaw; // Look direction
+            playerMeshes[id].rotation.y = p.yaw; 
 
-            // Nametag 3D to 2D projection
-            tempV.set(p.x, p.y + 2.2, p.z); // Slightly above head
+            tempV.set(p.x, p.y + 2.2, p.z); 
             tempV.project(camera);
-            if (tempV.z < 1) { // In front of camera
+            if (tempV.z < 1) { 
                 const x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
                 const y = (-(tempV.y * 0.5) + 0.5) * window.innerHeight;
                 nametagElements[id].style.display = 'block';
@@ -331,16 +371,13 @@
                 nametagElements[id].style.display = 'none';
             }
 
-            // Compass Logic
             const dx = p.x - state.players[myId].x;
             const dz = p.z - state.players[myId].z;
-            const angleToTarget = Math.atan2(dx, -dz); // Angle in world space (ThreeJS -Z is forward)
+            const angleToTarget = Math.atan2(dx, -dz); 
             let relAngle = angleToTarget - state.players[myId].yaw;
             
-            // Normalize to -PI to PI
             relAngle = Math.atan2(Math.sin(relAngle), Math.cos(relAngle));
             
-            // If within 90 degrees left or right (Math.PI/2)
             if (Math.abs(relAngle) < Math.PI / 2) {
                 const dot = document.createElement('div');
                 dot.className = 'compass-dot';
@@ -348,7 +385,6 @@
                 nameLabel.className = 'compass-name';
                 nameLabel.innerText = p.name;
                 
-                // Map -90deg to 90deg onto 0% to 100% of the compass width
                 const pct = (relAngle / (Math.PI / 2)) * 50 + 50; 
                 dot.style.left = `${pct}%`;
                 nameLabel.style.left = `${pct}%`;
@@ -359,7 +395,6 @@
         }
       }
 
-      // Cleanup disconnected players
       for (const id in playerMeshes) { 
           if (!state.players[id]) { 
               scene.remove(playerMeshes[id]); delete playerMeshes[id]; 
