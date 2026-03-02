@@ -7,7 +7,6 @@
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: sans-serif; }
-    /* Solid background hides the floor before joining */
     #start-screen { position: absolute; inset: 0; background: #111111; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
     .el-btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1s; }
     .el-btn:hover { transform: scale(1.05); }
@@ -15,15 +14,19 @@
     #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.8); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:260px; }
     .admin-btn { width: 100%; margin-bottom: 5px; padding: 5px; cursor: pointer; font-weight: bold; }
     
-    /* Repaired Move UI */
     #moves-container { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; }
     .move-slot { background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 5px; width: 80px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; overflow: hidden; }
     .move-key { position: absolute; top: 5px; left: 5px; font-size: 12px; font-weight: bold; color: #ffcc00; }
     .move-name { font-size: 14px; text-align: center; z-index: 2; padding: 0 5px; font-weight: bold; }
     .cooldown-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(255,0,0,0.5); z-index: 1; }
+
+    /* Flash Time-Slow Blue Overlay */
+    #flash-overlay { position: absolute; inset: 0; background: rgba(0, 50, 255, 0.25); pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 50; }
   </style>
 </head>
 <body>
+
+  <div id="flash-overlay"></div>
 
   <div id="start-screen">
     <h1 style="font-size: 50px; margin-bottom: 10px; color: #fff; text-shadow: 0 0 10px #fff;">ELEMENTAL ARENA</h1>
@@ -56,22 +59,25 @@
       <button onclick="sendAdminAction('bring')" style="flex:1; padding:5px;">Bring</button>
     </div>
     <hr style="border-color:#444;">
-    <button class="admin-btn" onclick="givePower()" style="background: #aaa;">Give Element to Target</button>
+    
+    <button class="admin-btn" onclick="sendAdminAction('giveAllPowers')" style="background: #aa3333; color: white;">Give All Elements to Target</button>
+    <button class="admin-btn" onclick="givePower()" style="background: #aaa;">Give Specific Element</button>
     <select id="power-list" style="width:100%; padding:5px; margin-bottom:10px;">
         <option value="AIR">Air</option>
         <option value="EARTH">Earth</option>
         <option value="FIRE">Fire</option>
         <option value="WATER">Water</option>
-        <option value="LIGHTNING">Lightning</option>
     </select>
+    
     <hr style="border-color:#444;">
-    <button class="admin-btn" onclick="sendAdminAction('equipLightning')" style="background:blue; color:white;">Equip Lightning</button>
+    <button class="admin-btn" onclick="sendAdminAction('equipLightning')" style="background:blue; color:white;">Equip Lightning (Self)</button>
     <button class="admin-btn" onclick="sendAdminAction('godmode')" id="btn-godmode">Toggle Godmode</button>
     <button class="admin-btn" onclick="sendAdminAction('nocooldown')" id="btn-nocooldown">Toggle No Cooldowns</button>
     <button class="admin-btn" onclick="sendAdminAction('nuke')" style="background:red; color:white;">NUKE SERVER</button>
   </div>
 
   <div style="position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: difference; z-index: 10;"></div>
+  
   <div style="position: absolute; bottom: 20px; left: 20px; color: white; text-shadow: 2px 2px 0 #000; pointer-events: none; user-select: none; display: none;" id="game-ui">
     <div style="margin-bottom: 10px;">
       <h2 id="display-name" style="margin: 0; font-size: 20px; color: #ddd;">Player</h2>
@@ -80,7 +86,9 @@
       </div>
     </div>
     <h2 id="el-name" style="margin: 0; font-size: 30px;">AIR</h2>
+    <div style="font-size: 14px; margin-top: 5px; color: #aaa;">(Press 1-4 to swap unlocked elements)</div>
   </div>
+
   <div id="moves-container" style="display:none;">
     <div class="move-slot"><div class="move-key">L-CLICK</div><div class="move-name" id="move0-name">Basic</div><div class="cooldown-overlay" id="cd0"></div></div>
     <div class="move-slot"><div class="move-key">Q</div><div class="move-name" id="move1-name">Heavy</div><div class="cooldown-overlay" id="cd1"></div></div>
@@ -98,13 +106,12 @@
     let myElement = "AIR";
     window.sessionRole = "player"; 
 
-    // We keep a lightweight version of elements just so the client knows UI info
     const ELEMENTS_UI = {
-        AIR: { color: 0xffffff, moves: [{ name: 'Air Slash', cd: 300 }, { name: 'Wind Blade', cd: 2000 }, { name: 'Dash', cd: 500 }, { name: 'Tornado', cd: 6000 }] },
-        EARTH: { color: 0x8b4513, moves: [{ name: 'Pebble', cd: 800 }, { name: 'Boulder', cd: 5000 }, { name: 'Wall', cd: 4000 }, { name: 'Earthquake', cd: 7000 }] },
-        FIRE: { color: 0xff4500, moves: [{ name: 'Fireball', cd: 400 }, { name: 'Blast', cd: 3500 }, { name: 'Flamethrower', cd: 4000 }, { name: 'Meteor', cd: 12000 }] },
-        WATER: { color: 0x0088ff, moves: [{ name: 'Water Gun', cd: 350 }, { name: 'Geyser', cd: 2500 }, { name: 'Tsunami', cd: 4000 }, { name: 'Whirlpool', cd: 5000 }] },
-        LIGHTNING: { color: 0x00ffff, moves: [{ name: 'Spark', cd: 150 }, { name: 'Strike', cd: 3000 }, { name: 'Flash', cd: 1000 }, { name: 'Storm', cd: 5000 }] }
+        AIR: { color: 0xffffff, moves: [{ name: 'Airblade', cd: 300 }, { name: 'Wind Blast', cd: 2000 }, { name: 'Air Dash', cd: 500 }, { name: 'Tornado', cd: 6000 }] },
+        EARTH: { color: 0x8b4513, moves: [{ name: 'Rock Throw', cd: 800 }, { name: 'Boulder', cd: 5000 }, { name: 'Earth Wall', cd: 4000 }, { name: 'Earthquake', cd: 7000 }] },
+        FIRE: { color: 0xff4500, moves: [{ name: 'Fireball', cd: 400 }, { name: 'Fire Sphere', cd: 3500 }, { name: 'Flamethrower', cd: 4000 }, { name: 'Meteor', cd: 12000 }] },
+        WATER: { color: 0x0088ff, moves: [{ name: 'Water Gun', cd: 350 }, { name: 'Water Whip', cd: 2500 }, { name: 'Tsunami', cd: 4000 }, { name: 'Whirlpool', cd: 5000 }] },
+        LIGHTNING: { color: 0x00ffff, moves: [{ name: 'Lightning Strike', cd: 1500 }, { name: 'Flash', cd: 15000 }, { name: 'Lightning Dash', cd: 1000 }, { name: 'Thunderstorm', cd: 5000 }] }
     };
 
     const inputs = { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, yaw: 0, pitch: 0 };
@@ -116,7 +123,7 @@
     scene.fog = new THREE.Fog(0x87ceeb, 20, 150);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-    camera.position.set(0, 20, 0); // Start high to hide floor
+    camera.position.set(0, 20, 0); 
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -133,28 +140,27 @@
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
     const grid = new THREE.GridHelper(2000, 500, 0x000000, 0x225522); grid.position.y = 0.05; scene.add(grid);
 
-    // Jail
+    // Visible Solid Ground Jail
     const jailGroup = new THREE.Group();
-    jailGroup.position.set(0, 500, 0);
+    jailGroup.position.set(20, 0.05, 20); // Moved to X:20, Z:20 at ground level
     const plateGeo = new THREE.BoxGeometry(12, 0.5, 12);
     const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
     jailGroup.add(new THREE.Mesh(plateGeo, blackMat)); 
     let roof = new THREE.Mesh(plateGeo, blackMat); roof.position.y = 10; jailGroup.add(roof);
     const barGeo = new THREE.CylinderGeometry(0.2, 0.2, 10);
     const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 });
-    for(let x = -5.5; x <= 5.5; x += 2) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, -5.5).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, 5.5).parent); }
-    for(let z = -3.5; z <= 3.5; z += 2) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(-5.5, 5, z).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(5.5, 5, z).parent); }
+    // Add thick bars around the perimeter
+    for(let x = -5.5; x <= 5.5; x += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, -5.5).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, 5.5).parent); }
+    for(let z = -4; z <= 4; z += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(-5.5, 5, z).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(5.5, 5, z).parent); }
     scene.add(jailGroup);
 
-    // --- Repaired Player Body & Arms ---
     const myBody = new THREE.Group();
     const bodyMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 16), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-    bodyMesh.position.y = 0.8; // Cylinder center
+    bodyMesh.position.y = 0.8; 
     myBody.add(bodyMesh);
 
-    // Pitch group acts as the shoulder joint for the arms
     const pitchGroup = new THREE.Group();
-    pitchGroup.position.y = 1.2; // Chest height
+    pitchGroup.position.y = 1.2; 
     myBody.add(pitchGroup);
 
     const handMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
@@ -166,22 +172,17 @@
     pitchGroup.add(rightHand);
     scene.add(myBody);
 
-    // Init
     window.initGame = (elementKey) => {
       const playerName = document.getElementById('player-name-input').value.trim();
-      const errorMsg = document.getElementById('name-error');
-      if (playerName === "") { errorMsg.innerText = "Name cannot be blank!"; errorMsg.style.display = "block"; return; }
-      
+      if (playerName === "") { document.getElementById('name-error').innerText = "Name cannot be blank!"; document.getElementById('name-error').style.display = "block"; return; }
       socket.emit('joinGame', { name: playerName, element: elementKey });
-      
       socket.on('joinSuccess', (data) => {
           myId = data.id;
           document.getElementById('start-screen').style.display = 'none';
           document.getElementById('game-ui').style.display = 'block';
           document.getElementById('moves-container').style.display = 'flex';
           document.getElementById('display-name').innerText = playerName;
-          isGameStarted = true;
-          document.body.requestPointerLock();
+          isGameStarted = true; document.body.requestPointerLock();
       });
     };
 
@@ -190,7 +191,6 @@
     document.getElementById('btn-fire').addEventListener('click', () => initGame('FIRE'));
     document.getElementById('btn-water').addEventListener('click', () => initGame('WATER'));
 
-    // Inputs
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === document.body) {
         inputs.yaw -= e.movementX * 0.002;
@@ -223,6 +223,11 @@
         return;
       }
       if (document.pointerLockElement === document.body) {
+          if (e.code === 'Digit1') socket.emit('switchElement', 'AIR');
+          if (e.code === 'Digit2') socket.emit('switchElement', 'EARTH');
+          if (e.code === 'Digit3') socket.emit('switchElement', 'FIRE');
+          if (e.code === 'Digit4') socket.emit('switchElement', 'WATER');
+
           if (e.code === 'KeyQ') socket.emit('useMove', 1);
           if (e.code === 'KeyE') socket.emit('useMove', 2);
           if (e.code === 'KeyR') socket.emit('useMove', 3);
@@ -245,7 +250,19 @@
     });
 
     function createProjectileMesh(data) {
-      let s = data.size, geo;
+      let s = data.size, geo, mat = new THREE.MeshStandardMaterial({ color: data.color, emissive: data.color, emissiveIntensity: 0.8 });
+      
+      // New Jagged Lightning Shape
+      if (data.shape === 'lightning') {
+          const group = new THREE.Group();
+          const baseGeo = new THREE.CylinderGeometry(0.1, 0.1, 2);
+          const p1 = new THREE.Mesh(baseGeo, mat); p1.rotation.x = Math.PI/2; 
+          const p2 = new THREE.Mesh(baseGeo, mat); p2.rotation.x = Math.PI/2; p2.position.set(0.3, 0.1, 1.5); p2.rotation.y = 0.3;
+          const p3 = new THREE.Mesh(baseGeo, mat); p3.rotation.x = Math.PI/2; p3.position.set(-0.2, -0.1, 3.0); p3.rotation.y = -0.3;
+          group.add(p1, p2, p3);
+          scene.add(group); return group;
+      }
+      
       if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
       else if (data.shape === 'pebble') geo = new THREE.TetrahedronGeometry(s, 1);
       else if (data.shape === 'spike') geo = new THREE.OctahedronGeometry(s, 0);
@@ -254,7 +271,8 @@
       else if (data.shape === 'long') geo = new THREE.BoxGeometry(s/2, s/2, s*8);
       else if (data.shape === 'cone') { geo = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geo.rotateX(Math.PI); }
       else geo = new THREE.SphereGeometry(s, 8, 8);
-      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: data.color, emissive: data.color, emissiveIntensity: 0.6 }));
+      
+      const mesh = new THREE.Mesh(geo, mat);
       scene.add(mesh); return mesh;
     }
 
@@ -275,49 +293,47 @@
     socket.on('kicked', () => { document.body.innerHTML = "<h1 style='color:red; text-align:center; margin-top:20%'>YOU HAVE BEEN KICKED/BANNED</h1>"; socket.disconnect(); });
     socket.on('death', () => { alert("You Died! Respawning..."); });
 
-    // State Sync
     socket.on('gameState', (state) => {
       if (!isGameStarted) return;
+
+      // Handle Flash Screen Overlay
+      const overlay = document.getElementById('flash-overlay');
+      if (state.slowMo && state.slowMo.active && state.slowMo.owner !== myId) {
+          overlay.style.opacity = '1';
+      } else {
+          overlay.style.opacity = '0';
+      }
 
       if (document.getElementById('admin-panel').style.display === 'block') {
           const select = document.getElementById('player-list');
           const currentVal = select.value;
-          select.innerHTML = '<option value="">-- Select Player --</option>';
+          select.innerHTML = `<option value="${myId}">[SELF]</option>`;
           for(let id in state.players) { if (id !== myId) select.innerHTML += `<option value="${id}">${state.players[id].name}</option>`; }
-          select.value = currentVal; 
+          select.value = currentVal || myId; 
       }
 
       for (const id in state.players) {
         const p = state.players[id];
         if (id === myId) {
-            // Camera acts as head
             camera.position.set(p.x, p.y + 1.6, p.z);
             camera.rotation.order = "YXZ";
             camera.rotation.set(p.pitch, p.yaw, 0);
             
-            // Body acts as torso
             myBody.position.set(p.x, p.y, p.z);
             myBody.rotation.y = p.yaw;
-            
-            // Pitch group acts as shoulders so hands pivot properly
             pitchGroup.rotation.x = p.pitch;
 
             document.getElementById('hp-bar').style.width = (p.hp / 100 * 100) + '%';
             
-            // Element & UI Sync
             if (myElement !== p.element) {
                 myElement = p.element;
                 const elInfo = ELEMENTS_UI[p.element];
                 document.getElementById('el-name').innerText = p.element;
                 document.getElementById('el-name').style.color = '#' + (elInfo.color).toString(16);
-                leftHand.material.color.setHex(elInfo.color); 
-                rightHand.material.color.setHex(elInfo.color);
-                
-                // Update move names
+                leftHand.material.color.setHex(elInfo.color); rightHand.material.color.setHex(elInfo.color);
                 for(let i=0; i<4; i++) { document.getElementById(`move${i}-name`).innerText = elInfo.moves[i].name; }
             }
 
-            // Cooldown logic
             const now = Date.now();
             for(let i=0; i<4; i++) {
                 const cdMax = ELEMENTS_UI[p.element].moves[i].cd;
@@ -343,7 +359,10 @@
       for (const pr of state.projectiles) {
           if (!projectileMeshes[pr.id]) projectileMeshes[pr.id] = createProjectileMesh(pr);
           projectileMeshes[pr.id].position.set(pr.x, pr.y, pr.z);
-          projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
+          // Only update lookAt if moving so Lightning points forward properly
+          if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
+              projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
+          }
       }
 
       for (const id in projectileMeshes) { if (!activeProjIds.has(id)) { scene.remove(projectileMeshes[id]); delete projectileMeshes[id]; } }
