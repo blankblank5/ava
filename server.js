@@ -13,36 +13,37 @@ let projCounter = 0;
 let slowMo = { active: false, owner: null, expires: 0 };
 
 // --- ELEMENT & MOVE DATA ---
+// Restored normal shapes for standard projectiles, kept special shapes for AoE/Utility
 const ELEMENTS = {
     AIR: { name: 'AIR', color: 0xffffff, moves: [
-        { dmg: 12, cd: 400, speed: 60, shape: 'sharp', size: 0.2 }, // Wind Blade
-        { dmg: 20, cd: 3000, speed: 30, shape: 'sphere', size: 0.8, knockback: 2.0 }, // Tornado (Pushes)
-        { dmg: 0, cd: 4000, type: 'dash', maxCharges: 3 }, // Air Dash (3 Charges)
+        { dmg: 12, cd: 400, speed: 60, shape: 'sphere', size: 0.2 }, // Wind Blade
+        { dmg: 20, cd: 3000, speed: 30, shape: 'sphere', size: 0.8, knockback: 2.0 }, // Tornado
+        { dmg: 0, cd: 4000, type: 'dash', maxCharges: 3 }, // Air Dash
         { dmg: 25, cd: 8000, speed: 20, shape: 'cone', size: 0.4, knockback: 3.0, count: 5, spread: 0.5 } // Hurricane
     ]},
     EARTH: { name: 'EARTH', color: 0x8b4513, moves: [
-        { dmg: 25, cd: 800, speed: 35, grav: 0.8, shape: 'pebble', size: 0.2 }, // Rock Throw
-        { dmg: 15, cd: 4000, speed: 50, grav: 0, shape: 'spike', size: 0.3, rootTime: 2000 }, // Stone Grasp (Roots 2s)
+        { dmg: 25, cd: 800, speed: 35, grav: 0.8, shape: 'rock', size: 0.3 }, // Rock Throw
+        { dmg: 15, cd: 4000, speed: 50, grav: 0, shape: 'spike', size: 0.3, rootTime: 2000 }, // Stone Grasp
         { dmg: 0, cd: 5000, type: 'wall' }, // Earth Wall
         { dmg: 90, cd: 10000, type: 'meteor', shape: 'rock', size: 1.5, grav: 1.5 } // Meteor
     ]},
     FIRE: { name: 'FIRE', color: 0xff4500, moves: [
-        { dmg: 15, cd: 400, speed: 55, shape: 'spike', size: 0.2 }, // Fireball
+        { dmg: 15, cd: 400, speed: 55, shape: 'sphere', size: 0.2 }, // Fireball
         { dmg: 40, cd: 3000, speed: 30, shape: 'sphere', size: 0.5, knockback: 0.5 }, // Fire Blast
-        { dmg: 5, cd: 4000, speed: 20, shape: 'spike', count: 15, spread: 1.2, auto: true, size: 0.2 }, // Flamethrower
+        { dmg: 5, cd: 4000, speed: 20, shape: 'sphere', count: 15, spread: 1.2, auto: true, size: 0.2 }, // Flamethrower
         { dmg: 120, cd: 12000, type: 'meteor', shape: 'sphere', size: 1.0, grav: 1.0 } // Fire Storm
     ]},
     WATER: { name: 'WATER', color: 0x0088ff, moves: [
         { dmg: 14, cd: 350, speed: 45, grav: 0.1, shape: 'sphere', size: 0.2 }, // Water Bullet
-        { dmg: 35, cd: 4000, speed: 40, shape: 'flat', size: 0.2, scale: 5, knockback: 2.5 }, // Tsunami (Wide Push)
-        { dmg: 25, cd: 3000, speed: 80, shape: 'long', size: 0.2 }, // Water Whip
+        { dmg: 35, cd: 4000, speed: 40, shape: 'flat', size: 0.2, scale: 5, knockback: 2.5 }, // Tsunami
+        { dmg: 25, cd: 3000, speed: 80, shape: 'sphere', size: 0.2 }, // Water Whip
         { dmg: 5, cd: 5000, speed: 15, grav: -0.05, shape: 'sphere', count: 12, spread: 1.0, knockback: 0.5, size: 0.3 } // Whirlpool
     ]},
     LIGHTNING: { name: 'LIGHTNING', color: 0x00ffff, moves: [
         { dmg: 35, cd: 1500, speed: 120, shape: 'lightning', size: 0.2 }, // Lightning Strike
         { dmg: 0, cd: 15000, type: 'flash' }, // Flash Slow-Mo
         { dmg: 0, cd: 1000, type: 'dash', maxCharges: 2 }, // Spark Dash
-        { dmg: 15, cd: 6000, speed: 80, shape: 'spike', count: 15, spread: 1.5, auto: true, size: 0.2 } // Thunderstorm
+        { dmg: 15, cd: 6000, speed: 80, shape: 'sphere', count: 15, spread: 1.5, auto: true, size: 0.2 } // Thunderstorm
     ]}
 };
 
@@ -80,7 +81,6 @@ io.on('connection', (socket) => {
         const p = players[socket.id];
         if (!p || p.isFrozen || !p.unlockedElements.includes(elName)) return;
         p.element = elName;
-        // Reset charges for new element
         p.charges = ELEMENTS[elName].moves.map(m => m.maxCharges || 1);
         p.rechargeTimers = [0,0,0,0];
     });
@@ -98,7 +98,7 @@ io.on('connection', (socket) => {
         if(!p.noCooldowns) {
             p.charges[index]--;
             if (p.charges[index] === (move.maxCharges || 1) - 1) {
-                p.rechargeTimers[index] = now + move.cd; // Start recharge
+                p.rechargeTimers[index] = now + move.cd; 
             }
         }
 
@@ -171,7 +171,7 @@ io.on('connection', (socket) => {
         else if (data.action === 'freeze' && target) { target.isFrozen = !target.isFrozen; }
         else if (data.action === 'tp' && target) { p.x = target.x; p.y = target.y + 2; p.z = target.z; }
         else if (data.action === 'bring' && target) { target.x = p.x; target.y = p.y + 2; target.z = p.z; }
-        else if (data.action === 'givePower' && target) { if (!target.unlockedElements.includes(data.value)) target.unlockedElements.push(data.value); target.element = data.value; p.charges = ELEMENTS[data.value].moves.map(m => m.maxCharges || 1); }
+        else if (data.action === 'givePower' && target) { if (!target.unlockedElements.includes(data.value)) target.unlockedElements.push(data.value); target.element = data.value; target.charges = ELEMENTS[data.value].moves.map(m => m.maxCharges || 1); }
         else if (data.action === 'giveAllPowers' && target) { target.unlockedElements = ['AIR', 'EARTH', 'FIRE', 'WATER']; }
         else if (data.action === 'godmode') { p.godMode = !p.godMode; if(p.godMode) p.hp = 100; }
         else if (data.action === 'nocooldown') { p.noCooldowns = !p.noCooldowns; }
@@ -187,7 +187,6 @@ setInterval(() => {
     for (const id in players) {
         const p = players[id];
         
-        // Recharge Logic
         const elemMoves = ELEMENTS[p.element].moves;
         for(let i=0; i<4; i++) {
             const max = elemMoves[i].maxCharges || 1;
@@ -202,7 +201,6 @@ setInterval(() => {
         let timeScale = (slowMo.active && id !== slowMo.owner) ? 0.2 : 1.0;
         let moveX = 0, moveZ = 0;
         
-        // Root Logic - Can't use WASD if rooted
         if (now > p.rootUntil) {
             const fwdX = -Math.sin(p.yaw), fwdZ = -Math.cos(p.yaw);
             const rightX = Math.cos(p.yaw), rightZ = -Math.sin(p.yaw);
@@ -256,17 +254,15 @@ setInterval(() => {
             const dx = pr.x - target.x; const dy = pr.y - (target.y + 0.8); const dz = pr.z - target.z;
             const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
             
-            // Increased hitbox slightly for wide moves like Tsunami
             if (dist < (pr.size * 2 + 1.5)) {
                 if(!target.godMode && pr.dmg > 0) {
                     target.hp -= pr.dmg;
-                    // Apply Knockback and Roots
                     if (pr.knockback) { target.vx += (pr.vx * pr.knockback * 0.1); target.vy += 8; target.vz += (pr.vz * pr.knockback * 0.1); }
                     if (pr.rootTime) { target.rootUntil = Date.now() + pr.rootTime; }
                     
                     if(target.hp <= 0) io.to(pid).emit('death'); 
                 }
-                if (pr.shape !== 'flat' && pr.shape !== 'wall') hitSomeone = true; // Flat/Wall moves pass through to hit multiple people
+                if (pr.shape !== 'flat' && pr.shape !== 'wall') hitSomeone = true; 
             }
         }
         if (hitSomeone || pr.y <= -2 || pr.life <= 0) { projectiles.splice(i, 1); }
