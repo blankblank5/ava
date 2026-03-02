@@ -17,16 +17,28 @@
     #moves-container { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; }
     .move-slot { background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 5px; width: 80px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; overflow: hidden; }
     .move-key { position: absolute; top: 5px; left: 5px; font-size: 12px; font-weight: bold; color: #ffcc00; }
-    .move-name { font-size: 14px; text-align: center; z-index: 2; padding: 0 5px; font-weight: bold; }
+    .move-name { font-size: 13px; text-align: center; z-index: 2; padding: 0 2px; font-weight: bold; }
+    .charge-count { position: absolute; top: 5px; right: 5px; font-size: 14px; font-weight: bold; color: #fff; z-index: 3; text-shadow: 1px 1px 0 #000; }
     .cooldown-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(255,0,0,0.5); z-index: 1; }
 
-    /* Flash Time-Slow Blue Overlay */
     #flash-overlay { position: absolute; inset: 0; background: rgba(0, 50, 255, 0.25); pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 50; }
+
+    /* New Compass UI */
+    #compass-container { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 400px; height: 30px; background: rgba(0,0,0,0.5); border: 2px solid #333; overflow: hidden; z-index: 10; display: none; }
+    .compass-dot { position: absolute; top: 5px; width: 8px; height: 8px; background: white; border-radius: 50%; transform: translateX(-50%); }
+    .compass-name { position: absolute; top: 15px; font-size: 10px; color: white; transform: translateX(-50%); white-space: nowrap; }
+
+    /* Floating Nametags */
+    #nametags-container { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+    .nametag { position: absolute; color: white; font-weight: bold; font-size: 14px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; transform: translate(-50%, -100%); display: none; }
   </style>
 </head>
 <body>
 
   <div id="flash-overlay"></div>
+  <div id="nametags-container"></div>
+
+  <div id="compass-container"></div>
 
   <div id="start-screen">
     <h1 style="font-size: 50px; margin-bottom: 10px; color: #fff; text-shadow: 0 0 10px #fff;">ELEMENTAL ARENA</h1>
@@ -59,8 +71,7 @@
       <button onclick="sendAdminAction('bring')" style="flex:1; padding:5px;">Bring</button>
     </div>
     <hr style="border-color:#444;">
-    
-    <button class="admin-btn" onclick="sendAdminAction('giveAllPowers')" style="background: #aa3333; color: white;">Give All Elements to Target</button>
+    <button class="admin-btn" onclick="sendAdminAction('giveAllPowers')" style="background: #aa3333; color: white;">Give All Elements</button>
     <button class="admin-btn" onclick="givePower()" style="background: #aaa;">Give Specific Element</button>
     <select id="power-list" style="width:100%; padding:5px; margin-bottom:10px;">
         <option value="AIR">Air</option>
@@ -68,12 +79,10 @@
         <option value="FIRE">Fire</option>
         <option value="WATER">Water</option>
     </select>
-    
     <hr style="border-color:#444;">
     <button class="admin-btn" onclick="sendAdminAction('equipLightning')" style="background:blue; color:white;">Equip Lightning (Self)</button>
-    <button class="admin-btn" onclick="sendAdminAction('godmode')" id="btn-godmode">Toggle Godmode</button>
-    <button class="admin-btn" onclick="sendAdminAction('nocooldown')" id="btn-nocooldown">Toggle No Cooldowns</button>
-    <button class="admin-btn" onclick="sendAdminAction('nuke')" style="background:red; color:white;">NUKE SERVER</button>
+    <button class="admin-btn" onclick="sendAdminAction('godmode')">Toggle Godmode</button>
+    <button class="admin-btn" onclick="sendAdminAction('nocooldown')">Toggle No Cooldowns</button>
   </div>
 
   <div style="position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: difference; z-index: 10;"></div>
@@ -86,14 +95,13 @@
       </div>
     </div>
     <h2 id="el-name" style="margin: 0; font-size: 30px;">AIR</h2>
-    <div style="font-size: 14px; margin-top: 5px; color: #aaa;">(Press 1-4 to swap unlocked elements)</div>
   </div>
 
   <div id="moves-container" style="display:none;">
-    <div class="move-slot"><div class="move-key">L-CLICK</div><div class="move-name" id="move0-name">Basic</div><div class="cooldown-overlay" id="cd0"></div></div>
-    <div class="move-slot"><div class="move-key">Q</div><div class="move-name" id="move1-name">Heavy</div><div class="cooldown-overlay" id="cd1"></div></div>
-    <div class="move-slot"><div class="move-key">E</div><div class="move-name" id="move2-name">Utility</div><div class="cooldown-overlay" id="cd2"></div></div>
-    <div class="move-slot"><div class="move-key">R</div><div class="move-name" id="move3-name">Ultimate</div><div class="cooldown-overlay" id="cd3"></div></div>
+    <div class="move-slot"><div class="move-key">L-CLICK</div><div class="charge-count" id="ch0"></div><div class="move-name" id="move0-name">Basic</div><div class="cooldown-overlay" id="cd0"></div></div>
+    <div class="move-slot"><div class="move-key">Q</div><div class="charge-count" id="ch1"></div><div class="move-name" id="move1-name">Heavy</div><div class="cooldown-overlay" id="cd1"></div></div>
+    <div class="move-slot"><div class="move-key">E</div><div class="charge-count" id="ch2"></div><div class="move-name" id="move2-name">Utility</div><div class="cooldown-overlay" id="cd2"></div></div>
+    <div class="move-slot"><div class="move-key">R</div><div class="charge-count" id="ch3"></div><div class="move-name" id="move3-name">Ultimate</div><div class="cooldown-overlay" id="cd3"></div></div>
   </div>
 
   <script type="module">
@@ -107,16 +115,17 @@
     window.sessionRole = "player"; 
 
     const ELEMENTS_UI = {
-        AIR: { color: 0xffffff, moves: [{ name: 'Airblade', cd: 300 }, { name: 'Wind Blast', cd: 2000 }, { name: 'Air Dash', cd: 500 }, { name: 'Tornado', cd: 6000 }] },
-        EARTH: { color: 0x8b4513, moves: [{ name: 'Rock Throw', cd: 800 }, { name: 'Boulder', cd: 5000 }, { name: 'Earth Wall', cd: 4000 }, { name: 'Earthquake', cd: 7000 }] },
-        FIRE: { color: 0xff4500, moves: [{ name: 'Fireball', cd: 400 }, { name: 'Fire Sphere', cd: 3500 }, { name: 'Flamethrower', cd: 4000 }, { name: 'Meteor', cd: 12000 }] },
-        WATER: { color: 0x0088ff, moves: [{ name: 'Water Gun', cd: 350 }, { name: 'Water Whip', cd: 2500 }, { name: 'Tsunami', cd: 4000 }, { name: 'Whirlpool', cd: 5000 }] },
-        LIGHTNING: { color: 0x00ffff, moves: [{ name: 'Lightning Strike', cd: 1500 }, { name: 'Flash', cd: 15000 }, { name: 'Lightning Dash', cd: 1000 }, { name: 'Thunderstorm', cd: 5000 }] }
+        AIR: { color: 0xffffff, moves: [{ name: 'Wind Blade' }, { name: 'Tornado' }, { name: 'Air Dash', maxCharges: 3, cd: 4000 }, { name: 'Hurricane', cd: 8000 }] },
+        EARTH: { color: 0x8b4513, moves: [{ name: 'Rock Throw' }, { name: 'Stone Grasp', cd: 4000 }, { name: 'Earth Wall', cd: 5000 }, { name: 'Meteor', cd: 10000 }] },
+        FIRE: { color: 0xff4500, moves: [{ name: 'Fireball' }, { name: 'Fire Blast', cd: 3000 }, { name: 'Flamethrower', cd: 4000 }, { name: 'Fire Storm', cd: 12000 }] },
+        WATER: { color: 0x0088ff, moves: [{ name: 'Water Bullet' }, { name: 'Tsunami', cd: 4000 }, { name: 'Water Whip', cd: 3000 }, { name: 'Whirlpool', cd: 5000 }] },
+        LIGHTNING: { color: 0x00ffff, moves: [{ name: 'Lightning Strike' }, { name: 'Flash' }, { name: 'Spark Dash', maxCharges: 2, cd: 1000 }, { name: 'Thunderstorm' }] }
     };
 
     const inputs = { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, yaw: 0, pitch: 0 };
     const playerMeshes = {};
     const projectileMeshes = {};
+    const nametagElements = {};
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
@@ -131,8 +140,7 @@
     document.body.appendChild(renderer.domElement);
 
     const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(50, 100, 50);
-    light.castShadow = true;
+    light.position.set(50, 100, 50); light.castShadow = true;
     scene.add(new THREE.AmbientLight(0x404040, 1.5));
     scene.add(light);
 
@@ -142,45 +150,30 @@
 
     // Visible Solid Ground Jail
     const jailGroup = new THREE.Group();
-    jailGroup.position.set(20, 0.05, 20); // Moved to X:20, Z:20 at ground level
+    jailGroup.position.set(20, 0.05, 20);
     const plateGeo = new THREE.BoxGeometry(12, 0.5, 12);
     const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
     jailGroup.add(new THREE.Mesh(plateGeo, blackMat)); 
     let roof = new THREE.Mesh(plateGeo, blackMat); roof.position.y = 10; jailGroup.add(roof);
     const barGeo = new THREE.CylinderGeometry(0.2, 0.2, 10);
     const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 });
-    // Add thick bars around the perimeter
     for(let x = -5.5; x <= 5.5; x += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, -5.5).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, 5.5).parent); }
     for(let z = -4; z <= 4; z += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(-5.5, 5, z).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(5.5, 5, z).parent); }
     scene.add(jailGroup);
 
     const myBody = new THREE.Group();
-    const bodyMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 16), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-    bodyMesh.position.y = 0.8; 
-    myBody.add(bodyMesh);
-
-    const pitchGroup = new THREE.Group();
-    pitchGroup.position.y = 1.2; 
-    myBody.add(pitchGroup);
-
-    const handMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const leftHand = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.8), handMat.clone());
-    const rightHand = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.8), handMat.clone());
-    leftHand.position.set(-0.8, 0, -0.6); 
-    rightHand.position.set(0.8, 0, -0.6);
-    pitchGroup.add(leftHand); 
-    pitchGroup.add(rightHand);
     scene.add(myBody);
 
     window.initGame = (elementKey) => {
       const playerName = document.getElementById('player-name-input').value.trim();
-      if (playerName === "") { document.getElementById('name-error').innerText = "Name cannot be blank!"; document.getElementById('name-error').style.display = "block"; return; }
+      if (playerName === "") return;
       socket.emit('joinGame', { name: playerName, element: elementKey });
       socket.on('joinSuccess', (data) => {
           myId = data.id;
           document.getElementById('start-screen').style.display = 'none';
           document.getElementById('game-ui').style.display = 'block';
           document.getElementById('moves-container').style.display = 'flex';
+          document.getElementById('compass-container').style.display = 'block';
           document.getElementById('display-name').innerText = playerName;
           isGameStarted = true; document.body.requestPointerLock();
       });
@@ -201,26 +194,17 @@
 
     document.addEventListener('click', (e) => {
       if (!isGameStarted) return;
-      if (document.getElementById('admin-panel').style.display !== 'block' && document.getElementById('admin-login').style.display !== 'flex' && document.pointerLockElement !== document.body) {
-          document.body.requestPointerLock();
-      }
+      if (document.pointerLockElement !== document.body && document.getElementById('admin-panel').style.display !== 'block') document.body.requestPointerLock();
     });
-
     document.addEventListener('mousedown', (e) => { if(document.pointerLockElement === document.body && e.button === 0) socket.emit('useMove', 0); });
     
     document.addEventListener('keydown', (e) => {
       if (!isGameStarted) return;
       if (e.code === 'KeyM' || e.code === 'KeyZ') {
-        if (window.sessionRole !== "player") {
-           const p = document.getElementById('admin-panel');
-           if (p.style.display === 'none' || p.style.display === '') { document.exitPointerLock(); p.style.display = 'block'; } 
-           else { p.style.display = 'none'; document.body.requestPointerLock(); }
-        } else {
-           const l = document.getElementById('admin-login');
-           if (l.style.display === 'none' || l.style.display === '') { document.exitPointerLock(); l.style.display = 'flex'; } 
-           else { l.style.display = 'none'; document.body.requestPointerLock(); }
-        }
-        return;
+         const p = document.getElementById('admin-panel');
+         if (p.style.display === 'none' || p.style.display === '') { document.exitPointerLock(); p.style.display = 'block'; } 
+         else { p.style.display = 'none'; document.body.requestPointerLock(); }
+         return;
       }
       if (document.pointerLockElement === document.body) {
           if (e.code === 'Digit1') socket.emit('switchElement', 'AIR');
@@ -239,90 +223,55 @@
           if (e.code === 'Space') inputs.jump = true;
       }
     });
-
     document.addEventListener('keyup', (e) => {
-      if (e.code === 'KeyW') inputs.forward = false;
-      if (e.code === 'KeyS') inputs.backward = false;
-      if (e.code === 'KeyA') inputs.left = false;
-      if (e.code === 'KeyD') inputs.right = false;
-      if (e.code === 'ShiftLeft') inputs.sprint = false;
-      if (e.code === 'Space') inputs.jump = false;
+      if (e.code === 'KeyW') inputs.forward = false; if (e.code === 'KeyS') inputs.backward = false;
+      if (e.code === 'KeyA') inputs.left = false; if (e.code === 'KeyD') inputs.right = false;
+      if (e.code === 'ShiftLeft') inputs.sprint = false; if (e.code === 'Space') inputs.jump = false;
     });
 
     function createProjectileMesh(data) {
       let s = data.size, geo, mat = new THREE.MeshStandardMaterial({ color: data.color, emissive: data.color, emissiveIntensity: 0.8 });
-      
-      // New Jagged Lightning Shape
       if (data.shape === 'lightning') {
           const group = new THREE.Group();
           const baseGeo = new THREE.CylinderGeometry(0.1, 0.1, 2);
           const p1 = new THREE.Mesh(baseGeo, mat); p1.rotation.x = Math.PI/2; 
           const p2 = new THREE.Mesh(baseGeo, mat); p2.rotation.x = Math.PI/2; p2.position.set(0.3, 0.1, 1.5); p2.rotation.y = 0.3;
-          const p3 = new THREE.Mesh(baseGeo, mat); p3.rotation.x = Math.PI/2; p3.position.set(-0.2, -0.1, 3.0); p3.rotation.y = -0.3;
-          group.add(p1, p2, p3);
-          scene.add(group); return group;
+          group.add(p1, p2); scene.add(group); return group;
       }
-      
       if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
-      else if (data.shape === 'pebble') geo = new THREE.TetrahedronGeometry(s, 1);
-      else if (data.shape === 'spike') geo = new THREE.OctahedronGeometry(s, 0);
-      else if (data.shape === 'sharp') geo = new THREE.TetrahedronGeometry(s, 0);
-      else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s);
-      else if (data.shape === 'long') geo = new THREE.BoxGeometry(s/2, s/2, s*8);
+      else if (data.shape === 'spike') geo = new THREE.ConeGeometry(s, s*4, 4);
+      else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s*2); // Tsunami/Wall
       else if (data.shape === 'cone') { geo = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geo.rotateX(Math.PI); }
       else geo = new THREE.SphereGeometry(s, 8, 8);
-      
-      const mesh = new THREE.Mesh(geo, mat);
-      scene.add(mesh); return mesh;
+      const mesh = new THREE.Mesh(geo, mat); scene.add(mesh); return mesh;
     }
 
     // Admin UI Setup
-    window.checkAdminLogin = () => {
-      const pass = document.getElementById('admin-pass').value;
-      if (pass === "1FOREST1") { window.sessionRole = "admin"; document.getElementById('panel-title').innerText = "Admin Panel"; } 
-      else if (pass === "caleb1") { window.sessionRole = "owner"; document.getElementById('panel-title').innerText = "Owner Panel"; } 
-      else { alert("Incorrect Password"); return; }
-      socket.emit('setRole', window.sessionRole);
-      document.getElementById('admin-login').style.display = 'none';
-      document.getElementById('admin-panel').style.display = 'block';
-    };
-    window.closeAdminLogin = () => { document.getElementById('admin-login').style.display = 'none'; document.body.requestPointerLock(); };
+    window.checkAdminLogin = () => { /* Logic */ document.getElementById('admin-login').style.display='none'; document.getElementById('admin-panel').style.display='block'; window.sessionRole='admin'; socket.emit('setRole','admin'); };
+    window.closeAdminLogin = () => { document.getElementById('admin-login').style.display='none'; document.body.requestPointerLock(); };
     window.sendAdminAction = (action) => { socket.emit('adminCommand', { action: action, targetId: document.getElementById('player-list').value }); };
     window.givePower = () => { socket.emit('adminCommand', { action: 'givePower', targetId: document.getElementById('player-list').value, value: document.getElementById('power-list').value }); };
 
-    socket.on('kicked', () => { document.body.innerHTML = "<h1 style='color:red; text-align:center; margin-top:20%'>YOU HAVE BEEN KICKED/BANNED</h1>"; socket.disconnect(); });
     socket.on('death', () => { alert("You Died! Respawning..."); });
+
+    const tempV = new THREE.Vector3(); // Used for 3D to 2D projection
 
     socket.on('gameState', (state) => {
       if (!isGameStarted) return;
-
-      // Handle Flash Screen Overlay
+      const now = Date.now();
+      
       const overlay = document.getElementById('flash-overlay');
-      if (state.slowMo && state.slowMo.active && state.slowMo.owner !== myId) {
-          overlay.style.opacity = '1';
-      } else {
-          overlay.style.opacity = '0';
-      }
+      overlay.style.opacity = (state.slowMo && state.slowMo.active && state.slowMo.owner !== myId) ? '1' : '0';
 
-      if (document.getElementById('admin-panel').style.display === 'block') {
-          const select = document.getElementById('player-list');
-          const currentVal = select.value;
-          select.innerHTML = `<option value="${myId}">[SELF]</option>`;
-          for(let id in state.players) { if (id !== myId) select.innerHTML += `<option value="${id}">${state.players[id].name}</option>`; }
-          select.value = currentVal || myId; 
-      }
+      const compass = document.getElementById('compass-container');
+      compass.innerHTML = ''; // Clear compass dots
 
       for (const id in state.players) {
         const p = state.players[id];
+        
         if (id === myId) {
             camera.position.set(p.x, p.y + 1.6, p.z);
-            camera.rotation.order = "YXZ";
-            camera.rotation.set(p.pitch, p.yaw, 0);
-            
-            myBody.position.set(p.x, p.y, p.z);
-            myBody.rotation.y = p.yaw;
-            pitchGroup.rotation.x = p.pitch;
-
+            camera.rotation.order = "YXZ"; camera.rotation.set(p.pitch, p.yaw, 0);
             document.getElementById('hp-bar').style.width = (p.hp / 100 * 100) + '%';
             
             if (myElement !== p.element) {
@@ -330,48 +279,105 @@
                 const elInfo = ELEMENTS_UI[p.element];
                 document.getElementById('el-name').innerText = p.element;
                 document.getElementById('el-name').style.color = '#' + (elInfo.color).toString(16);
-                leftHand.material.color.setHex(elInfo.color); rightHand.material.color.setHex(elInfo.color);
-                for(let i=0; i<4; i++) { document.getElementById(`move${i}-name`).innerText = elInfo.moves[i].name; }
+                for(let i=0; i<4; i++) document.getElementById(`move${i}-name`).innerText = elInfo.moves[i].name;
             }
 
-            const now = Date.now();
+            // Update Charges and Cooldown UI
             for(let i=0; i<4; i++) {
-                const cdMax = ELEMENTS_UI[p.element].moves[i].cd;
-                const cdEnd = p.cooldowns[i];
-                const pct = cdEnd > now ? ((cdEnd - now) / cdMax) * 100 : 0;
-                document.getElementById(`cd${i}`).style.height = pct + '%';
+                const max = ELEMENTS_UI[p.element].moves[i].maxCharges || 1;
+                const cdMax = ELEMENTS_UI[p.element].moves[i].cd || 1000;
+                
+                // Set charge text (e.g., "[3]")
+                document.getElementById(`ch${i}`).innerText = max > 1 ? `[${p.charges[i]}]` : "";
+                
+                // Draw cooldown shading if a charge is regenerating
+                if (p.charges[i] < max) {
+                    const cdEnd = p.rechargeTimers[i];
+                    const pct = cdEnd > now ? ((cdEnd - now) / cdMax) * 100 : 0;
+                    document.getElementById(`cd${i}`).style.height = pct + '%';
+                } else {
+                    document.getElementById(`cd${i}`).style.height = '0%';
+                }
             }
-
         } else {
+            // Player Models (Body + Head)
             if (!playerMeshes[id]) {
                 const group = new THREE.Group();
-                group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 16), new THREE.MeshStandardMaterial({ color: 0xdddddd })));
-                scene.add(group);
-                playerMeshes[id] = group;
+                const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+                const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), mat); body.position.y = 0.6;
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat); head.position.y = 1.5;
+                group.add(body, head); scene.add(group); playerMeshes[id] = group;
+                
+                // Nametag DOM creation
+                const tag = document.createElement('div');
+                tag.className = 'nametag';
+                tag.innerText = p.name;
+                document.getElementById('nametags-container').appendChild(tag);
+                nametagElements[id] = tag;
             }
-            playerMeshes[id].position.set(p.x, p.y + 0.8, p.z);
+            playerMeshes[id].position.set(p.x, p.y, p.z);
+            playerMeshes[id].rotation.y = p.yaw; // Look direction
+
+            // Nametag 3D to 2D projection
+            tempV.set(p.x, p.y + 2.2, p.z); // Slightly above head
+            tempV.project(camera);
+            if (tempV.z < 1) { // In front of camera
+                const x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-(tempV.y * 0.5) + 0.5) * window.innerHeight;
+                nametagElements[id].style.display = 'block';
+                nametagElements[id].style.left = `${x}px`;
+                nametagElements[id].style.top = `${y}px`;
+            } else {
+                nametagElements[id].style.display = 'none';
+            }
+
+            // Compass Logic
+            const dx = p.x - state.players[myId].x;
+            const dz = p.z - state.players[myId].z;
+            const angleToTarget = Math.atan2(dx, -dz); // Angle in world space (ThreeJS -Z is forward)
+            let relAngle = angleToTarget - state.players[myId].yaw;
+            
+            // Normalize to -PI to PI
+            relAngle = Math.atan2(Math.sin(relAngle), Math.cos(relAngle));
+            
+            // If within 90 degrees left or right (Math.PI/2)
+            if (Math.abs(relAngle) < Math.PI / 2) {
+                const dot = document.createElement('div');
+                dot.className = 'compass-dot';
+                const nameLabel = document.createElement('div');
+                nameLabel.className = 'compass-name';
+                nameLabel.innerText = p.name;
+                
+                // Map -90deg to 90deg onto 0% to 100% of the compass width
+                const pct = (relAngle / (Math.PI / 2)) * 50 + 50; 
+                dot.style.left = `${pct}%`;
+                nameLabel.style.left = `${pct}%`;
+                
+                compass.appendChild(dot);
+                compass.appendChild(nameLabel);
+            }
         }
       }
 
-      for (const id in playerMeshes) { if (!state.players[id]) { scene.remove(playerMeshes[id]); delete playerMeshes[id]; } }
+      // Cleanup disconnected players
+      for (const id in playerMeshes) { 
+          if (!state.players[id]) { 
+              scene.remove(playerMeshes[id]); delete playerMeshes[id]; 
+              if (nametagElements[id]) { nametagElements[id].remove(); delete nametagElements[id]; }
+          } 
+      }
 
       const activeProjIds = new Set(state.projectiles.map(pr => pr.id));
       for (const pr of state.projectiles) {
           if (!projectileMeshes[pr.id]) projectileMeshes[pr.id] = createProjectileMesh(pr);
           projectileMeshes[pr.id].position.set(pr.x, pr.y, pr.z);
-          // Only update lookAt if moving so Lightning points forward properly
-          if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
-              projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
-          }
+          if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
       }
-
       for (const id in projectileMeshes) { if (!activeProjIds.has(id)) { scene.remove(projectileMeshes[id]); delete projectileMeshes[id]; } }
     });
 
     setInterval(() => { if (isGameStarted && document.pointerLockElement === document.body) socket.emit('input', inputs); }, 1000 / 30);
-
-    function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
-    animate();
+    function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); } animate();
     window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
   </script>
 </body>
