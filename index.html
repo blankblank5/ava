@@ -11,7 +11,6 @@
     .el-btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1s; }
     .el-btn:hover { transform: scale(1.05); }
     
-    /* Fixed flex display for admin login */
     #admin-login { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9); z-index:200; flex-direction:column; align-items:center; justify-content:center; color:white; }
     #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.8); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:260px; }
     .admin-btn { width: 100%; margin-bottom: 5px; padding: 5px; cursor: pointer; font-weight: bold; }
@@ -62,8 +61,7 @@
     <select id="player-list" style="width:100%; padding:5px; margin-bottom:10px;"></select>
     <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
       <button onclick="sendAdminAction('jail')" style="flex:1; padding:5px;">Jail</button>
-      <button onclick="sendAdminAction('kick')" style="flex:1; padding:5px;">Kick</button>
-      <button onclick="sendAdminAction('ban')" style="flex:1; padding:5px;">Ban</button>
+      <button onclick="sendAdminAction('nuke')" style="flex:1; padding:5px; background:darkred; color:white;">Nuke</button>
       <button onclick="sendAdminAction('freeze')" style="flex:1; padding:5px;">Freeze</button>
       <button onclick="sendAdminAction('tp')" style="flex:1; padding:5px;">TP To</button>
       <button onclick="sendAdminAction('bring')" style="flex:1; padding:5px;">Bring</button>
@@ -105,6 +103,7 @@
   <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
 
+    // REMEMBER TO KEEP YOUR RENDER URL HERE
     const socket = io('https://ava-pwjs.onrender.com');
 
     let isGameStarted = false;
@@ -200,12 +199,11 @@
     document.addEventListener('keydown', (e) => {
       if (!isGameStarted) return;
       
-      // FIXED ADMIN KEYBIND LOGIC
-      if (e.code === 'KeyM' || e.code === 'KeyZ') {
+      if (e.code === 'KeyM') {
          const login = document.getElementById('admin-login');
          const panel = document.getElementById('admin-panel');
          
-         if (window.sessionRole === 'admin') {
+         if (window.sessionRole === 'admin' || window.sessionRole === 'owner') {
              // Already logged in, toggle panel
              if (panel.style.display === 'none' || panel.style.display === '') {
                  document.exitPointerLock();
@@ -259,23 +257,41 @@
           const p2 = new THREE.Mesh(baseGeo, mat); p2.rotation.x = Math.PI/2; p2.position.set(0.3, 0.1, 1.5); p2.rotation.y = 0.3;
           group.add(p1, p2); scene.add(group); return group;
       }
-      if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
+      
+      // Fire geometric shapes
+      if (data.shape === 'icosahedron') geo = new THREE.IcosahedronGeometry(s * 1.5, 0);
+      else if (data.shape === 'octahedron') geo = new THREE.OctahedronGeometry(s * 2, 0);
+      else if (data.shape === 'tetrahedron') geo = new THREE.TetrahedronGeometry(s * 1.5, 0);
+      else if (data.shape === 'torusknot') geo = new THREE.TorusKnotGeometry(s * 1.5, s * 0.4, 64, 8);
+      // Other shapes
+      else if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
       else if (data.shape === 'spike') geo = new THREE.ConeGeometry(s, s*4, 4);
       else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s*2); 
       else if (data.shape === 'cone') { geo = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geo.rotateX(Math.PI); }
       else geo = new THREE.SphereGeometry(s, 8, 8); // Default fallback
-      const mesh = new THREE.Mesh(geo, mat); scene.add(mesh); return mesh;
+      
+      const mesh = new THREE.Mesh(geo, mat); 
+      scene.add(mesh); 
+      return mesh;
     }
 
-    // FIXED ADMIN LOGIN LOGIC
+    // UPDATED PASSWORD LOGIC
     window.checkAdminLogin = () => { 
         const pass = document.getElementById('admin-pass').value;
-        if (pass === 'admin' || pass === 'owner') {
+        if (pass === '1FOREST1') {
             document.getElementById('admin-login').style.display='none'; 
             document.getElementById('admin-panel').style.display='block'; 
+            document.getElementById('panel-title').innerText = "Admin Panel";
             window.sessionRole='admin'; 
             socket.emit('setRole','admin');
-            document.getElementById('admin-pass').value = ""; // Clear password field
+            document.getElementById('admin-pass').value = ""; 
+        } else if (pass === 'Caleb1') {
+            document.getElementById('admin-login').style.display='none'; 
+            document.getElementById('admin-panel').style.display='block'; 
+            document.getElementById('panel-title').innerText = "Owner Panel";
+            window.sessionRole='owner'; 
+            socket.emit('setRole','owner');
+            document.getElementById('admin-pass').value = ""; 
         } else {
             alert("Incorrect Password!");
         }
@@ -299,7 +315,6 @@
       const compass = document.getElementById('compass-container');
       compass.innerHTML = ''; 
 
-      // Update player dropdown in admin panel if needed
       const playerDropdown = document.getElementById('player-list');
       if (document.getElementById('admin-panel').style.display === 'block') {
           const currentSelection = playerDropdown.value;
@@ -406,7 +421,18 @@
       for (const pr of state.projectiles) {
           if (!projectileMeshes[pr.id]) projectileMeshes[pr.id] = createProjectileMesh(pr);
           projectileMeshes[pr.id].position.set(pr.x, pr.y, pr.z);
-          if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
+          
+          // Make those wild fire shapes spin!
+          if (pr.shape === 'icosahedron' || pr.shape === 'octahedron' || pr.shape === 'tetrahedron' || pr.shape === 'torusknot') {
+              projectileMeshes[pr.id].rotation.x += 0.1;
+              projectileMeshes[pr.id].rotation.y += 0.1;
+          }
+
+          if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
+              if (pr.shape !== 'icosahedron' && pr.shape !== 'octahedron' && pr.shape !== 'tetrahedron' && pr.shape !== 'torusknot') {
+                  projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
+              }
+          }
       }
       for (const id in projectileMeshes) { if (!activeProjIds.has(id)) { scene.remove(projectileMeshes[id]); delete projectileMeshes[id]; } }
     });
