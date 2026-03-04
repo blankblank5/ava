@@ -36,7 +36,6 @@
     #nametags-container { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
     .nametag { position: absolute; color: white; font-weight: bold; font-size: 14px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; transform: translate(-50%, -100%); display: none; }
 
-    /* Updated Roblox Style Chat */
     #chat-wrapper { position: absolute; top: 10px; left: 10px; width: 320px; height: 250px; background: rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 100; border-radius: 5px; border: 1px solid #444; }
     #chat-messages { flex: 1; overflow-y: auto; padding: 10px; color: white; font-size: 14px; text-shadow: 1px 1px 0 #000; display: flex; flex-direction: column; gap: 4px; pointer-events: auto; }
     #chat-input-container { display: flex; border-top: 1px solid #444; }
@@ -138,10 +137,10 @@
             <h4 style="margin:5px 0; color:#ff4444;">Owner Actions</h4>
             <button class="admin-btn" onclick="sendAdminAction('giveAdmin', document.getElementById('server-player-list').value)" style="background:#aa22aa; color:white;">Give Admin Role</button>
             <button class="admin-btn" onclick="sendAdminAction('stripAdmin', document.getElementById('server-player-list').value)" style="background:#ff3333; color:white;">Strip Admin Role & Powers</button>
+            
+            <hr style="border-color:#444;">
+            <button class="admin-btn" onclick="sendAdminAction('nuke', null)" style="background:darkred; color:white; font-size:16px; padding:15px;">NUKE SERVER</button>
         </div>
-
-        <hr style="border-color:#444;">
-        <button class="admin-btn" onclick="sendAdminAction('nuke', null)" style="background:darkred; color:white;">NUKE SERVER</button>
     </div>
   </div>
 
@@ -174,7 +173,6 @@
     let myElement = "AIR";
     window.sessionRole = "player"; 
 
-    // Updated Element Names
     const ELEMENTS_UI = {
         AIR: { color: 0xffffff, moves: [{ name: 'Air Blast' }, { name: 'Wind Blade' }, { name: 'Air Dash', maxCharges: 3, cd: 4000 }, { name: 'Hurricane', cd: 8000 }] },
         EARTH: { color: 0x8b4513, moves: [{ name: 'Rock Throw' }, { name: 'Stone Grasp', cd: 4000 }, { name: 'Earth Wall', cd: 5000 }, { name: 'Meteor', cd: 10000 }] },
@@ -230,12 +228,23 @@
         document.body.requestPointerLock();
     });
 
+    // --- NUKE EVENT HANDLER ---
+    socket.on('serverNuked', (data) => {
+        if (window.sessionRole === 'owner') return; // Owners are immune to the screen
+        document.exitPointerLock();
+        document.body.innerHTML = `
+            <div style="background:black; color:red; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:sans-serif; text-align:center;">
+                <h1 style="font-size:80px; margin:0; text-shadow: 0 0 20px red;">SERVER NUKED</h1>
+                <p style="font-size:25px; color:white; margin-top:20px;">Refresh the page to reconnect.</p>
+            </div>
+        `;
+    });
+
     document.getElementById('btn-air').addEventListener('click', () => initGame('AIR'));
     document.getElementById('btn-earth').addEventListener('click', () => initGame('EARTH'));
     document.getElementById('btn-fire').addEventListener('click', () => initGame('FIRE'));
     document.getElementById('btn-water').addEventListener('click', () => initGame('WATER'));
 
-    // Safe Chat Logic
     window.toggleChat = () => {
         const chat = document.getElementById('chat-wrapper');
         const btn = document.getElementById('chat-toggle-btn');
@@ -249,7 +258,6 @@
             socket.emit('chatMessage', chatInput.value); 
             chatInput.value = ''; 
         }
-        // Purposely NOT requesting pointer lock here so they can keep typing if they want to
     };
     
     document.getElementById('chat-send-btn').addEventListener('click', sendChat);
@@ -257,7 +265,11 @@
     socket.on('chatMessage', (data) => {
         const chatBox = document.getElementById('chat-messages');
         const msgDiv = document.createElement('div');
-        msgDiv.innerHTML = `<span style="font-weight:bold; color:#ffcc00;">[${data.name}]:</span> ${data.text}`;
+        if (data.name === "SYSTEM") {
+            msgDiv.innerHTML = `<span style="font-weight:bold; color:#ff4444;">[SYSTEM]:</span> <span style="color:#ffaaaa;">${data.text}</span>`;
+        } else {
+            msgDiv.innerHTML = `<span style="font-weight:bold; color:#ffcc00;">[${data.name}]:</span> ${data.text}`;
+        }
         chatBox.appendChild(msgDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
     });
@@ -271,7 +283,6 @@
 
     document.addEventListener('click', (e) => {
       if (!isGameStarted) return;
-      // Added chat-send-btn and the entire chat-wrapper to exclusions so it doesn't trap your mouse!
       if (e.target.id === 'chat-toggle-btn' || e.target.id === 'chat-input' || e.target.id === 'chat-send-btn' || e.target.closest('#chat-wrapper') || e.target.classList.contains('admin-btn')) return;
       
       if (document.pointerLockElement !== document.body && document.getElementById('admin-panel').style.display !== 'block' && document.getElementById('admin-login').style.display !== 'flex') {
@@ -284,7 +295,6 @@
     document.addEventListener('keydown', (e) => {
       if (!isGameStarted) return;
       
-      // Removed the Enter key sending logic here so it doesn't interfere
       if (document.activeElement === chatInput) return;
 
       if (e.key === 'Enter' || e.key === '/') {
@@ -351,8 +361,8 @@
       else if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
       else if (data.shape === 'spike') geo = new THREE.ConeGeometry(s, s*4, 4);
       else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s*2); 
-      else if (data.shape === 'cylinder') { geo = new THREE.CylinderGeometry(s*0.8, s*0.8, s*4, 8); geo.rotateX(Math.PI / 2); } // Water Whip
-      else if (data.shape === 'wall') { geo = new THREE.BoxGeometry(6, 4, 1); mat.transparent = true; mat.opacity = 0.9; } // Massive Rectangle
+      else if (data.shape === 'cylinder') { geo = new THREE.CylinderGeometry(s*0.8, s*0.8, s*4, 8); geo.rotateX(Math.PI / 2); } 
+      else if (data.shape === 'wall') { geo = new THREE.BoxGeometry(6, 4, 1); mat.transparent = true; mat.opacity = 0.9; } 
       else if (data.shape === 'cone') { geo = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geo.rotateX(Math.PI); }
       else geo = new THREE.SphereGeometry(s, 8, 8); 
       
@@ -396,8 +406,9 @@
       if (!isGameStarted) return;
       const now = Date.now();
       
+      // OWNERS DON'T GET FLASH SCREEN VISUAL
       const overlay = document.getElementById('flash-overlay');
-      overlay.style.opacity = (state.slowMo && state.slowMo.active && state.slowMo.owner !== window.myId) ? '1' : '0';
+      overlay.style.opacity = (state.slowMo && state.slowMo.active && state.slowMo.owner !== window.myId && window.sessionRole !== 'owner') ? '1' : '0';
 
       const compass = document.getElementById('compass-container'); compass.innerHTML = ''; 
 
@@ -472,8 +483,8 @@
           }
 
           if (pr.shape === 'wall') {
-              // Rotates the rectangle wide so it forms a barricade facing away from you
-              if (pr.life === 400) { projectileMeshes[pr.id].lookAt(pr.x - Math.cos(state.players[pr.ownerId].yaw), pr.y, pr.z + Math.sin(state.players[pr.ownerId].yaw)); }
+              // LOCKS WALL ROTATION based on where you were facing when you cast it
+              projectileMeshes[pr.id].rotation.y = pr.yaw;
           } else if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
               if (pr.shape !== 'icosahedron' && pr.shape !== 'octahedron' && pr.shape !== 'tetrahedron' && pr.shape !== 'torusknot') {
                   projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
