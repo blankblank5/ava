@@ -1,345 +1,334 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Elemental Game - Server Auth</title>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <style>
-    body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: sans-serif; }
-    #start-screen { position: absolute; inset: 0; background: #111111; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
-    .el-btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1s; }
-    .el-btn:hover { transform: scale(1.05); }
-    
-    #admin-login { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9); z-index:200; flex-direction:column; align-items:center; justify-content:center; color:white; }
-    #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.9); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:300px; max-height: 80vh; overflow-y: auto; }
-    .admin-btn { width: 100%; margin-bottom: 5px; padding: 8px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; }
-    
-    .tab-container { display: flex; margin-bottom: 15px; border-bottom: 2px solid #444; }
-    .tab-btn { flex: 1; padding: 8px; background: #222; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 12px; }
-    .tab-btn.active { background: cyan; color: black; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
 
-    #moves-container { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; }
-    .move-slot { background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 5px; width: 80px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; overflow: hidden; }
-    .move-key { position: absolute; top: 5px; left: 5px; font-size: 12px; font-weight: bold; color: #ffcc00; }
-    .move-name { font-size: 13px; text-align: center; z-index: 2; padding: 0 2px; font-weight: bold; }
-    .charge-count { position: absolute; top: 5px; right: 5px; font-size: 14px; font-weight: bold; color: #fff; z-index: 3; text-shadow: 1px 1px 0 #000; }
-    .cooldown-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(255,0,0,0.5); z-index: 1; }
+const app = express();
+app.use(cors());
 
-    #flash-overlay { position: absolute; inset: 0; background: rgba(0, 50, 255, 0.25); pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 50; }
-    #compass-container { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 400px; height: 30px; background: rgba(0,0,0,0.5); border: 2px solid #333; overflow: hidden; z-index: 10; display: none; }
-    .compass-dot { position: absolute; top: 5px; width: 8px; height: 8px; background: white; border-radius: 50%; transform: translateX(-50%); }
-    .compass-name { position: absolute; top: 15px; font-size: 10px; color: white; transform: translateX(-50%); white-space: nowrap; }
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
 
-    #nametags-container { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
-    .nametag { position: absolute; color: white; font-weight: bold; font-size: 14px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; transform: translate(-50%, -100%); display: none; }
+let projCounter = 0;
+let slowMo = { active: false, owner: null, expires: 0 };
 
-    /* Roblox Style Chat */
-    #chat-wrapper { position: absolute; top: 10px; left: 10px; width: 300px; height: 250px; background: rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 100; border-radius: 5px; border: 1px solid #444; }
-    #chat-messages { flex: 1; overflow-y: auto; padding: 10px; color: white; font-size: 14px; text-shadow: 1px 1px 0 #000; display: flex; flex-direction: column; gap: 4px; }
-    #chat-input { background: rgba(0,0,0,0.7); color: white; border: none; border-top: 1px solid #444; padding: 10px; outline: none; font-family: sans-serif; font-size: 14px; }
-    #chat-toggle-btn { position: absolute; top: 10px; right: 10px; z-index: 90; padding: 8px 12px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #555; cursor: pointer; border-radius: 5px; display: none; font-weight: bold; }
-    #chat-toggle-btn:hover { background: rgba(0,0,0,0.8); }
-  </style>
-</head>
-<body>
+const ELEMENTS = {
+    AIR: { name: 'AIR', color: 0xffffff, moves: [
+        { dmg: 12, cd: 400, speed: 60, shape: 'sphere', size: 0.2 }, // Air Blast
+        { dmg: 25, cd: 3000, speed: 45, shape: 'flat', size: 0.2, scale: 3, knockback: 1.5 }, // Wind Blade
+        { dmg: 0, cd: 4000, type: 'dash', maxCharges: 3 }, // Dash
+        { dmg: 6, cd: 8000, speed: 25, shape: 'sphere', count: 20, spread: 1.0, auto: true, size: 0.3, knockback: 1.0 } // Hurricane (Air balls stream)
+    ]},
+    EARTH: { name: 'EARTH', color: 0x8b4513, moves: [
+        { dmg: 25, cd: 800, speed: 35, grav: 0.8, shape: 'rock', size: 0.3 },
+        { dmg: 15, cd: 4000, speed: 50, grav: 0, shape: 'spike', size: 0.3, rootTime: 2000 },
+        { dmg: 0, cd: 5000, type: 'wall' }, // Huge Rectangle Wall
+        { dmg: 90, cd: 10000, type: 'meteor', shape: 'rock', size: 1.5, grav: 1.5 }
+    ]},
+    FIRE: { name: 'FIRE', color: 0xff4500, moves: [
+        { dmg: 15, cd: 400, speed: 55, shape: 'icosahedron', size: 0.2 },
+        { dmg: 40, cd: 3000, speed: 30, shape: 'octahedron', size: 0.5, knockback: 0.5 },
+        { dmg: 5, cd: 4000, speed: 20, shape: 'tetrahedron', count: 15, spread: 1.2, auto: true, size: 0.2 },
+        { dmg: 120, cd: 12000, type: 'meteor', shape: 'torusknot', size: 1.0, grav: 1.0 }
+    ]},
+    WATER: { name: 'WATER', color: 0x0088ff, moves: [
+        { dmg: 14, cd: 350, speed: 45, grav: 0.1, shape: 'sphere', size: 0.2 },
+        { dmg: 35, cd: 4000, speed: 40, shape: 'flat', size: 0.2, scale: 5, knockback: 2.5 },
+        { dmg: 25, cd: 3000, speed: 60, shape: 'cylinder', size: 0.4 }, // Water Whip
+        { dmg: 15, cd: 8000, speed: 15, shape: 'cone', size: 0.8, knockback: 2.0, count: 8, spread: 0.8 } // Whirlpool
+    ]},
+    LIGHTNING: { name: 'LIGHTNING', color: 0x00ffff, moves: [
+        { dmg: 35, cd: 1500, speed: 120, shape: 'lightning', size: 0.2 },
+        { dmg: 0, cd: 15000, type: 'flash' },
+        { dmg: 0, cd: 1000, type: 'dash', maxCharges: 2 },
+        { dmg: 15, cd: 6000, speed: 80, shape: 'sphere', count: 15, spread: 1.5, auto: true, size: 0.2 }
+    ]}
+};
 
-  <div id="flash-overlay"></div>
-  <div id="nametags-container"></div>
-  <div id="compass-container"></div>
+const players = {}; 
+const projectiles = [];
+const TICK_RATE = 30; 
+const DELTA = 1 / TICK_RATE;
 
-  <button id="chat-toggle-btn" onclick="toggleChat()">Chat [ON]</button>
-  <div id="chat-wrapper">
-      <div id="chat-messages"></div>
-      <input type="text" id="chat-input" placeholder="Press '/' or click here to chat..." maxlength="100">
-  </div>
+function getDir(yaw, pitch) {
+    return { x: -Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: -Math.cos(yaw) * Math.cos(pitch) };
+}
 
-  <div id="start-screen">
-    <h1 style="font-size: 50px; margin-bottom: 10px; color: #fff; text-shadow: 0 0 10px #fff;">ELEMENTAL ARENA</h1>
-    <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="15" style="padding: 15px; font-size: 20px; margin-bottom: 10px; text-align: center; border-radius: 5px; border: none; width: 300px;">
-    <h2>Select Your Element</h2>
-    <div style="display: flex; gap: 15px;">
-      <button class="el-btn" id="btn-air" style="background: #ffffff; color: black;">AIR</button>
-      <button class="el-btn" id="btn-earth" style="background: #8b4513; color: white;">EARTH</button>
-      <button class="el-btn" id="btn-fire" style="background: #ff4500; color: white;">FIRE</button>
-      <button class="el-btn" id="btn-water" style="background: #0088ff; color: white;">WATER</button>
-    </div>
-  </div>
+io.on('connection', (socket) => {
+    socket.on('joinGame', (data) => {
+        const defaultCharges = ELEMENTS[data.element].moves.map(m => m.maxCharges || 1);
+        players[socket.id] = {
+            id: socket.id, name: data.name, role: "player", 
+            ogElement: data.element, 
+            element: data.element, unlockedElements: [data.element],
+            hp: 100, x: 0, y: 5, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0,
+            isFrozen: false, isJailed: false, isMuted: false, godMode: false, noCooldowns: false, rootUntil: 0,
+            charges: [...defaultCharges], rechargeTimers: [0,0,0,0],
+            inputs: { forward:false, backward:false, left:false, right:false, jump:false, sprint:false }
+        };
+        socket.emit('joinSuccess', { id: socket.id });
+    });
 
-  <div id="admin-login">
-    <h2>Admin / Owner Login</h2>
-    <input type="password" id="admin-pass" placeholder="Enter Password..." style="padding:10px; font-size:18px;">
-    <button onclick="checkAdminLogin()" style="margin-top:10px; padding:10px 20px; font-size: 18px;">Login</button>
-    <button onclick="closeAdminLogin()" style="margin-top:10px; padding:5px 10px; background: red; color: white; border: none;">Cancel</button>
-  </div>
-  
-  <div id="admin-panel">
-    <h3 id="panel-title" style="margin-top:0; color:cyan; text-align:center;">Admin Panel</h3>
-    
-    <div class="tab-container">
-        <button class="tab-btn active" onclick="switchTab('self')" id="btn-tab-self">Self</button>
-        <button class="tab-btn" onclick="switchTab('give')" id="btn-tab-give">Give</button>
-        <button class="tab-btn" onclick="switchTab('server')" id="btn-tab-server">Server</button>
-    </div>
+    socket.on('setRole', (role) => { 
+        if(players[socket.id] && (role === "admin" || role === "owner")) { players[socket.id].role = role; }
+    });
 
-    <div id="tab-self" class="tab-content active">
-        <button class="admin-btn" onclick="sendAdminAction('godmode', window.myId)" style="background:#88aa00;">Toggle Godmode (Auto-Heal)</button>
-        <button class="admin-btn" onclick="sendAdminAction('nocooldown', window.myId)" style="background:#bb8800;">Toggle No Cooldowns</button>
-        <button class="admin-btn" onclick="sendAdminAction('equipLightning', window.myId)" style="background:#0055ff; color:white;">Equip Lightning</button>
-    </div>
+    socket.on('chatMessage', (msg) => {
+        const p = players[socket.id];
+        if (!p || p.isMuted) return;
+        io.emit('chatMessage', { name: p.name, text: msg.substring(0, 100) });
+    });
 
-    <div id="tab-give" class="tab-content">
-        <select id="give-player-list" style="width:100%; padding:8px; margin-bottom:10px; font-weight:bold;"></select>
+    socket.on('input', (data) => {
+        const p = players[socket.id];
+        if(!p || p.isFrozen) return;
+        p.inputs = data; p.yaw = data.yaw; p.pitch = data.pitch;
+    });
+
+    socket.on('switchElement', (elName) => {
+        const p = players[socket.id];
+        if (!p || p.isFrozen || !p.unlockedElements.includes(elName)) return;
+        p.element = elName;
+        p.charges = ELEMENTS[elName].moves.map(m => m.maxCharges || 1);
+        p.rechargeTimers = [0,0,0,0];
+    });
+
+    socket.on('useMove', (index) => {
+        const p = players[socket.id];
+        if(!p || p.isFrozen) return;
+        const elemStats = ELEMENTS[p.element];
+        if(!elemStats || !elemStats.moves[index]) return;
+        const move = elemStats.moves[index];
+        const now = Date.now();
+
+        if(!p.noCooldowns && p.charges[index] <= 0) return; 
+
+        if(!p.noCooldowns) {
+            p.charges[index]--;
+            if (p.charges[index] === (move.maxCharges || 1) - 1) { p.rechargeTimers[index] = now + move.cd; }
+        }
+
+        const dir = getDir(p.yaw, p.pitch);
         
-        <button class="admin-btn" onclick="sendAdminAction('heal', document.getElementById('give-player-list').value)" style="background:#00aa00; color:white;">Heal Player</button>
-        <button class="admin-btn" onclick="sendAdminAction('godmode', document.getElementById('give-player-list').value)" style="background:#88aa00;">Toggle God Mode</button>
-        <button class="admin-btn" onclick="sendAdminAction('nocooldown', document.getElementById('give-player-list').value)" style="background:#bb8800;">Toggle No Cooldowns</button>
+        if (move.type === 'flash') {
+            slowMo.active = true; slowMo.owner = socket.id; slowMo.expires = now + 5000; return;
+        }
+
+        if(move.type === 'dash') {
+            if(dir.y > 0.4) { p.vy = 25; p.vx += dir.x * 10; p.vz += dir.z * 10; }
+            else { p.vx += dir.x * 40; p.vz += dir.z * 40; p.vy = 5; }
+            return;
+        }
+
+        if (move.type === 'meteor') {
+            projectiles.push({
+                id: "proj_" + (projCounter++), ownerId: socket.id,
+                x: p.x + (dir.x * 15), y: p.y + 25, z: p.z + (dir.z * 15),
+                vx: 0, vy: -30, vz: 0, gravity: move.grav || 1.0,
+                life: 300, dmg: move.dmg, shape: move.shape, color: elemStats.color, size: move.size || 1, knockback: 1.5
+            });
+            return;
+        }
+
+        if (move.type === 'wall') {
+            const dist = 6; // Spawns further out
+            projectiles.push({
+                id: "proj_" + (projCounter++), ownerId: socket.id,
+                x: p.x + (dir.x * dist), 
+                y: p.y + 2,
+                z: p.z + (dir.z * dist),
+                vx: 0, vy: 0, vz: 0, gravity: 0,
+                life: 400, dmg: 0, shape: 'wall', color: elemStats.color, size: 1.0, isSolid: true, hp: 10
+            });
+            return;
+        }
+
+        const count = move.count || 1;
+        for(let i = 0; i < count; i++) {
+            setTimeout(() => {
+                let dx = dir.x, dy = dir.y, dz = dir.z;
+                if(move.spread > 0) {
+                    dx += (Math.random() - 0.5) * move.spread; dy += (Math.random() - 0.5) * move.spread; dz += (Math.random() - 0.5) * move.spread;
+                    const len = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                    dx /= len; dy /= len; dz /= len;
+                }
+                projectiles.push({
+                    id: "proj_" + (projCounter++), ownerId: socket.id,
+                    x: p.x + (dx * 1.5), y: p.y + 1.2 + (dy * 1.5), z: p.z + (dz * 1.5),
+                    vx: dx * move.speed, vy: dy * move.speed, vz: dz * move.speed, gravity: move.grav || 0,
+                    life: move.life || 200, dmg: move.dmg, shape: move.shape, color: elemStats.color, size: move.size * (move.scale || 1),
+                    knockback: move.knockback || 0, rootTime: move.rootTime || 0
+                });
+            }, move.auto ? i * 50 : 0);
+        }
+    });
+
+    socket.on('adminCommand', (data) => {
+        const p = players[socket.id];
+        if (!p || (p.role !== "admin" && p.role !== "owner")) return;
+        const target = players[data.targetId];
         
-        <hr style="border-color:#444;">
-        <select id="power-list" style="width:100%; padding:5px; margin-bottom:5px;">
-            <option value="AIR">Air</option><option value="EARTH">Earth</option>
-            <option value="FIRE">Fire</option><option value="WATER">Water</option>
-        </select>
-        <button class="admin-btn" onclick="givePower()" style="background: #444; color:white;">Give Standard Element</button>
-        <button class="admin-btn" onclick="sendAdminAction('giveAll', document.getElementById('give-player-list').value)" style="background:#2288cc; color:white;">Give ALL Elements</button>
+        if (data.action === 'nuke') { for(let id in players) { if(!players[id].godMode) { players[id].hp = 0; io.to(id).emit('death'); } } return; }
+        if (!target) return;
+
+        if (data.action === 'jail') { target.isJailed = !target.isJailed; if (target.isJailed) { target.x = 20; target.y = 1; target.z = 20; } }
+        else if (data.action === 'mute') { target.isMuted = !target.isMuted; }
+        else if (data.action === 'kick') { const tSocket = io.sockets.sockets.get(data.targetId); if(tSocket) tSocket.disconnect(); }
+        else if (data.action === 'freeze') { target.isFrozen = !target.isFrozen; }
+        else if (data.action === 'tp') { p.x = target.x; p.y = target.y + 2; p.z = target.z; }
+        else if (data.action === 'bring') { target.x = p.x; target.y = p.y + 2; target.z = p.z; }
+        else if (data.action === 'heal') { target.hp = 100; }
+        else if (data.action === 'godmode') { target.godMode = !target.godMode; if(target.godMode) target.hp = 100; }
+        else if (data.action === 'nocooldown') { target.noCooldowns = !target.noCooldowns; }
+        else if (data.action === 'givePower') { 
+            if (!target.unlockedElements.includes(data.value)) target.unlockedElements.push(data.value); 
+            target.element = data.value; target.charges = ELEMENTS[data.value].moves.map(m => m.maxCharges || 1); 
+        }
+        else if (data.action === 'giveAll') {
+            target.unlockedElements = ['AIR', 'EARTH', 'FIRE', 'WATER', 'LIGHTNING'];
+        }
+        else if (data.action === 'equipLightning') { 
+            if (!target.unlockedElements.includes('LIGHTNING')) target.unlockedElements.push('LIGHTNING'); 
+            target.element = 'LIGHTNING'; target.charges = ELEMENTS['LIGHTNING'].moves.map(m => m.maxCharges || 1); 
+        }
+
+        if (p.role === "owner") {
+            if (data.action === 'giveAdmin') { target.role = "admin"; }
+            else if (data.action === 'removeAllPowers') {
+                target.unlockedElements = [target.ogElement];
+                target.element = target.ogElement;
+                target.charges = ELEMENTS[target.ogElement].moves.map(m => m.maxCharges || 1);
+            }
+            else if (data.action === 'stripAdmin') {
+                target.role = "player";
+                target.godMode = false;
+                target.noCooldowns = false;
+                target.unlockedElements = [target.ogElement];
+                target.element = target.ogElement;
+                target.charges = ELEMENTS[target.ogElement].moves.map(m => m.maxCharges || 1);
+            }
+        }
+    });
+
+    socket.on('disconnect', () => { delete players[socket.id]; });
+});
+
+setInterval(() => {
+    const now = Date.now();
+    if (slowMo.active && now > slowMo.expires) { slowMo.active = false; slowMo.owner = null; }
+
+    for (const id in players) {
+        const p = players[id];
+        const elemMoves = ELEMENTS[p.element].moves;
+        for(let i=0; i<4; i++) {
+            const max = elemMoves[i].maxCharges || 1;
+            if (p.charges[i] < max && now >= p.rechargeTimers[i]) {
+                p.charges[i]++;
+                if (p.charges[i] < max) p.rechargeTimers[i] = now + elemMoves[i].cd;
+            }
+        }
+
+        if (p.isFrozen) continue;
+
+        let timeScale = (slowMo.active && id !== slowMo.owner) ? 0.2 : 1.0;
+        let moveX = 0, moveZ = 0;
         
-        <div id="owner-give-section" style="display:none; margin-top:10px;">
-            <h4 style="margin:5px 0; color:#ff4444;">Owner Actions</h4>
-            <button class="admin-btn" onclick="sendAdminAction('removeAllPowers', document.getElementById('give-player-list').value)" style="background:#ff3333; color:white;">Remove All Powers (Revert)</button>
-        </div>
-    </div>
+        if (now > p.rootUntil) {
+            const fwdX = -Math.sin(p.yaw), fwdZ = -Math.cos(p.yaw);
+            const rightX = Math.cos(p.yaw), rightZ = -Math.sin(p.yaw);
+            if(p.inputs.forward) { moveX += fwdX; moveZ += fwdZ; }
+            if(p.inputs.backward) { moveX -= fwdX; moveZ -= fwdZ; }
+            if(p.inputs.right) { moveX += rightX; moveZ += rightZ; }
+            if(p.inputs.left) { moveX -= rightX; moveZ -= rightZ; }
+            const len = Math.sqrt(moveX*moveX + moveZ*moveZ);
+            if(len > 0) { moveX /= len; moveZ /= len; }
+        }
 
-    <div id="tab-server" class="tab-content">
-        <select id="server-player-list" style="width:100%; padding:8px; margin-bottom:10px; font-weight:bold;"></select>
+        const speed = p.inputs.sprint ? 18.0 : 10.0;
+        p.vx += moveX * speed * DELTA * timeScale;
+        p.vz += moveZ * speed * DELTA * timeScale;
+        p.vx -= p.vx * 5.0 * DELTA * timeScale;
+        p.vz -= p.vz * 5.0 * DELTA * timeScale;
+        p.x += p.vx * DELTA * 3 * timeScale;
+        p.z += p.vz * DELTA * 3 * timeScale;
+
+        for (const pr of projectiles) {
+            if (pr.isSolid) {
+                const dx = p.x - pr.x; const dz = p.z - pr.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+                // Adjusted collision for wider wall
+                if (dist < 3.5 && p.y < pr.y + 4) {
+                    const push = 3.5 - dist;
+                    p.x += (dx/dist) * push; p.z += (dz/dist) * push;
+                }
+            }
+        }
+
+        p.vy -= 15.0 * DELTA * timeScale;
+        p.y += p.vy * DELTA * timeScale;
+
+        if (p.isJailed) {
+            p.x = Math.max(14.5, Math.min(25.5, p.x)); p.z = Math.max(14.5, Math.min(25.5, p.z));
+            if (p.y > 9.5) { p.y = 9.5; p.vy = 0; } 
+        } else {
+            if (p.x > 13.5 && p.x < 26.5 && p.z > 13.5 && p.z < 26.5 && p.y < 10) {
+                const dx1 = Math.abs(p.x - 13.5), dx2 = Math.abs(26.5 - p.x), dz1 = Math.abs(p.z - 13.5), dz2 = Math.abs(26.5 - p.z);
+                const min = Math.min(dx1, dx2, dz1, dz2);
+                if (min === dx1) p.x = 13.5; else if (min === dx2) p.x = 26.5; else if (min === dz1) p.z = 13.5; else p.z = 26.5;
+            }
+        }
+
+        if (p.y <= 0) { p.y = 0; p.vy = 0; if (p.inputs.jump && now > p.rootUntil) { p.vy = 6.0; p.inputs.jump = false; } }
         
-        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
-            <button class="admin-btn" onclick="sendAdminAction('jail', document.getElementById('server-player-list').value)" style="flex:1;">Jail</button>
-            <button class="admin-btn" onclick="sendAdminAction('freeze', document.getElementById('server-player-list').value)" style="flex:1;">Freeze</button>
-        </div>
-        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
-            <button class="admin-btn" onclick="sendAdminAction('mute', document.getElementById('server-player-list').value)" style="flex:1; background:#cc7700; color:white;">Mute</button>
-            <button class="admin-btn" onclick="sendAdminAction('kick', document.getElementById('server-player-list').value)" style="flex:1; background:#aa0000; color:white;">Kick</button>
-        </div>
-        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
-            <button class="admin-btn" onclick="sendAdminAction('tp', document.getElementById('server-player-list').value)" style="flex:1;">TP To</button>
-            <button class="admin-btn" onclick="sendAdminAction('bring', document.getElementById('server-player-list').value)" style="flex:1;">Bring</button>
-        </div>
-        
-        <div id="owner-server-section" style="display:none;">
-            <hr style="border-color:#444;">
-            <h4 style="margin:5px 0; color:#ff4444;">Owner Actions</h4>
-            <button class="admin-btn" onclick="sendAdminAction('giveAdmin', document.getElementById('server-player-list').value)" style="background:#aa22aa; color:white;">Give Admin Role</button>
-            <button class="admin-btn" onclick="sendAdminAction('stripAdmin', document.getElementById('server-player-list').value)" style="background:#ff3333; color:white;">Strip Admin Role & Powers</button>
-        </div>
+        if(p.hp <= 0) { 
+            p.hp = 100; p.vx = 0; p.vy = 0; p.vz = 0; p.rootUntil = 0; 
+            if (p.isJailed) { p.x = 20; p.y = 1; p.z = 20; } 
+            else { p.x = 0; p.y = 5; p.z = 0; }
+        }
+    }
 
-        <hr style="border-color:#444;">
-        <button class="admin-btn" onclick="sendAdminAction('nuke', null)" style="background:darkred; color:white;">NUKE SERVER</button>
-    </div>
-  </div>
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const pr = projectiles[i];
+        let pTimeScale = (slowMo.active && pr.ownerId !== slowMo.owner) ? 0.2 : 1.0;
 
-  <div style="position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: difference; z-index: 10;"></div>
-  
-  <div style="position: absolute; bottom: 20px; left: 20px; color: white; text-shadow: 2px 2px 0 #000; pointer-events: none; user-select: none; display: none;" id="game-ui">
-    <div style="margin-bottom: 10px;">
-      <h2 id="display-name" style="margin: 0; font-size: 20px; color: #ddd;">Player</h2>
-      <div style="width: 250px; height: 15px; background: #500; margin-top: 5px; border: 2px solid #222;">
-        <div id="hp-bar" style="width: 100%; height: 100%; background: #ff2222; transition: width 0.2s;"></div>
-      </div>
-    </div>
-    <h2 id="el-name" style="margin: 0; font-size: 30px;">AIR</h2>
-  </div>
+        pr.x += pr.vx * DELTA * pTimeScale; pr.y += pr.vy * DELTA * pTimeScale; pr.z += pr.vz * DELTA * pTimeScale;
+        pr.vy -= pr.gravity * pTimeScale; pr.life -= 1 * pTimeScale;
 
-  <div id="moves-container" style="display:none;">
-    <div class="move-slot"><div class="move-key">L-CLICK</div><div class="charge-count" id="ch0"></div><div class="move-name" id="move0-name">Basic</div><div class="cooldown-overlay" id="cd0"></div></div>
-    <div class="move-slot"><div class="move-key">Q</div><div class="charge-count" id="ch1"></div><div class="move-name" id="move1-name">Heavy</div><div class="cooldown-overlay" id="cd1"></div></div>
-    <div class="move-slot"><div class="move-key">E</div><div class="charge-count" id="ch2"></div><div class="move-name" id="move2-name">Utility</div><div class="cooldown-overlay" id="cd2"></div></div>
-    <div class="move-slot"><div class="move-key">R</div><div class="charge-count" id="ch3"></div><div class="move-name" id="move3-name">Ultimate</div><div class="cooldown-overlay" id="cd3"></div></div>
-  </div>
+        let destroyed = false;
+        if (!pr.isSolid && pr.dmg > 0) {
+            for (let j = projectiles.length - 1; j >= 0; j--) {
+                const wall = projectiles[j];
+                if (wall.isSolid && pr.ownerId !== wall.ownerId) {
+                    const dx = pr.x - wall.x; const dy = pr.y - wall.y; const dz = pr.z - wall.z;
+                    if (Math.sqrt(dx*dx + dy*dy + dz*dz) < 3.5) { 
+                        wall.hp -= 1;
+                        if (wall.hp <= 0) wall.life = 0;
+                        destroyed = true; break;
+                    }
+                }
+            }
+        }
 
-  <script type="module">
-    import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
+        if (!destroyed && !pr.isSolid) {
+            for (const pid in players) {
+                if (pid === pr.ownerId) continue;
+                const target = players[pid];
+                const dx = pr.x - target.x; const dy = pr.y - (target.y + 0.8); const dz = pr.z - target.z;
+                if (Math.sqrt(dx*dx + dy*dy + dz*dz) < (pr.size * 2 + 1.5)) {
+                    if(!target.godMode && pr.dmg > 0) {
+                        target.hp -= pr.dmg;
+                        if (pr.knockback) { target.vx += (pr.vx * pr.knockback * 0.1); target.vy += 8; target.vz += (pr.vz * pr.knockback * 0.1); }
+                        if (pr.rootTime) { target.rootUntil = Date.now() + pr.rootTime; }
+                        if(target.hp <= 0) io.to(pid).emit('death'); 
+                    }
+                    if (pr.shape !== 'flat' && pr.shape !== 'cylinder') destroyed = true; 
+                }
+            }
+        }
+        if (destroyed || pr.y <= -2 || pr.life <= 0) { projectiles.splice(i, 1); }
+    }
+    io.emit('gameState', { players, projectiles, slowMo });
+}, 1000 / TICK_RATE);
 
-    const socket = io('https://ava-pwjs.onrender.com'); 
-
-    let isGameStarted = false;
-    window.myId = null;
-    let myElement = "AIR";
-    window.sessionRole = "player"; 
-
-    const ELEMENTS_UI = {
-        AIR: { color: 0xffffff, moves: [{ name: 'Wind Blade' }, { name: 'Tornado' }, { name: 'Air Dash', maxCharges: 3, cd: 4000 }, { name: 'Hurricane', cd: 8000 }] },
-        EARTH: { color: 0x8b4513, moves: [{ name: 'Rock Throw' }, { name: 'Stone Grasp', cd: 4000 }, { name: 'Earth Wall', cd: 5000 }, { name: 'Meteor', cd: 10000 }] },
-        FIRE: { color: 0xff4500, moves: [{ name: 'Fireball' }, { name: 'Fire Blast', cd: 3000 }, { name: 'Flamethrower', cd: 4000 }, { name: 'Fire Storm', cd: 12000 }] },
-        WATER: { color: 0x0088ff, moves: [{ name: 'Water Bullet' }, { name: 'Tsunami', cd: 4000 }, { name: 'Water Whip', cd: 3000 }, { name: 'Whirlpool', cd: 5000 }] },
-        LIGHTNING: { color: 0x00ffff, moves: [{ name: 'Lightning Strike' }, { name: 'Flash' }, { name: 'Spark Dash', maxCharges: 2, cd: 1000 }, { name: 'Thunderstorm' }] }
-    };
-
-    const inputs = { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, yaw: 0, pitch: 0 };
-    const playerMeshes = {}; const projectileMeshes = {}; const nametagElements = {};
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb); scene.fog = new THREE.Fog(0x87ceeb, 20, 150);
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-    camera.position.set(0, 20, 0); 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true;
-    document.body.appendChild(renderer.domElement);
-
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(50, 100, 50); light.castShadow = true;
-    scene.add(new THREE.AmbientLight(0x404040, 1.5)); scene.add(light);
-
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ color: 0x33aa33 }));
-    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-    const grid = new THREE.GridHelper(2000, 500, 0x000000, 0x225522); grid.position.y = 0.05; scene.add(grid);
-
-    // THIN GRAY BARS FOR JAIL
-    const jailGroup = new THREE.Group();
-    jailGroup.position.set(20, 0.05, 20);
-    const plateGeo = new THREE.BoxGeometry(12, 0.5, 12); const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-    jailGroup.add(new THREE.Mesh(plateGeo, blackMat)); 
-    let roof = new THREE.Mesh(plateGeo, blackMat); roof.position.y = 10; jailGroup.add(roof);
-    const barGeo = new THREE.CylinderGeometry(0.08, 0.08, 10); const grayMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5 });
-    for(let x = -5.5; x <= 5.5; x += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, -5.5).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, 5.5).parent); }
-    for(let z = -4; z <= 4; z += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(-5.5, 5, z).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(5.5, 5, z).parent); }
-    scene.add(jailGroup);
-
-    window.initGame = (elementKey) => {
-      const playerName = document.getElementById('player-name-input').value.trim() || "Player";
-      socket.emit('joinGame', { name: playerName, element: elementKey });
-    };
-
-    socket.on('joinSuccess', (data) => {
-        window.myId = data.id;
-        document.getElementById('start-screen').style.display = 'none';
-        document.getElementById('game-ui').style.display = 'block';
-        document.getElementById('moves-container').style.display = 'flex';
-        document.getElementById('compass-container').style.display = 'block';
-        document.getElementById('chat-wrapper').style.display = 'flex';
-        document.getElementById('chat-toggle-btn').style.display = 'block';
-        document.getElementById('display-name').innerText = document.getElementById('player-name-input').value.trim() || "Player";
-        isGameStarted = true; 
-        document.body.requestPointerLock();
-    });
-
-    document.getElementById('btn-air').addEventListener('click', () => initGame('AIR'));
-    document.getElementById('btn-earth').addEventListener('click', () => initGame('EARTH'));
-    document.getElementById('btn-fire').addEventListener('click', () => initGame('FIRE'));
-    document.getElementById('btn-water').addEventListener('click', () => initGame('WATER'));
-
-    // Chat Logic
-    window.toggleChat = () => {
-        const chat = document.getElementById('chat-wrapper');
-        const btn = document.getElementById('chat-toggle-btn');
-        if (chat.style.display === 'none') { chat.style.display = 'flex'; btn.innerText = "Chat [ON]"; } 
-        else { chat.style.display = 'none'; btn.innerText = "Chat [OFF]"; }
-    };
-
-    const chatInput = document.getElementById('chat-input');
-    const sendChat = () => {
-        if(chatInput.value.trim() !== '') { socket.emit('chatMessage', chatInput.value); chatInput.value = ''; }
-        document.body.requestPointerLock();
-    };
-
-    socket.on('chatMessage', (data) => {
-        const chatBox = document.getElementById('chat-messages');
-        const msgDiv = document.createElement('div');
-        msgDiv.innerHTML = `<span style="font-weight:bold; color:#ffcc00;">[${data.name}]:</span> ${data.text}`;
-        chatBox.appendChild(msgDiv);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement === document.body) {
-        inputs.yaw -= e.movementX * 0.002; inputs.pitch -= e.movementY * 0.002;
-        inputs.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, inputs.pitch));
-      }
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!isGameStarted) return;
-      if (e.target.id === 'chat-toggle-btn' || e.target.id === 'chat-input' || e.target.classList.contains('admin-btn')) return;
-      
-      if (document.pointerLockElement !== document.body && document.getElementById('admin-panel').style.display !== 'block' && document.getElementById('admin-login').style.display !== 'flex') {
-          document.body.requestPointerLock();
-      }
-    });
-    
-    document.addEventListener('mousedown', (e) => { if(document.pointerLockElement === document.body && e.button === 0) socket.emit('useMove', 0); });
-    
-    document.addEventListener('keydown', (e) => {
-      if (!isGameStarted) return;
-      
-      // Prevent game bindings if typing in chat
-      if (document.activeElement === chatInput) {
-          if (e.key === 'Enter') sendChat();
-          return;
-      }
-
-      if (e.key === 'Enter' || e.key === '/') {
-          e.preventDefault();
-          document.exitPointerLock();
-          document.getElementById('chat-wrapper').style.display = 'flex';
-          document.getElementById('chat-toggle-btn').innerText = "Chat [ON]";
-          chatInput.focus();
-          return;
-      }
-      
-      if (e.code === 'KeyM') {
-         const login = document.getElementById('admin-login'); const panel = document.getElementById('admin-panel');
-         if (window.sessionRole === 'admin' || window.sessionRole === 'owner') {
-             if (panel.style.display === 'none' || panel.style.display === '') { document.exitPointerLock(); panel.style.display = 'block'; } 
-             else { panel.style.display = 'none'; document.body.requestPointerLock(); }
-         } else {
-             if (login.style.display === 'none' || login.style.display === '') { document.exitPointerLock(); login.style.display = 'flex'; } 
-             else { login.style.display = 'none'; document.body.requestPointerLock(); }
-         } return;
-      }
-
-      if (document.pointerLockElement === document.body) {
-          if (e.code === 'Digit1') socket.emit('switchElement', 'AIR');
-          if (e.code === 'Digit2') socket.emit('switchElement', 'EARTH');
-          if (e.code === 'Digit3') socket.emit('switchElement', 'FIRE');
-          if (e.code === 'Digit4') socket.emit('switchElement', 'WATER');
-
-          if (e.code === 'KeyQ') socket.emit('useMove', 1);
-          if (e.code === 'KeyE') socket.emit('useMove', 2);
-          if (e.code === 'KeyR') socket.emit('useMove', 3);
-          
-          if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.forward = true;
-          if (e.code === 'KeyS' || e.code === 'ArrowDown') inputs.backward = true;
-          if (e.code === 'KeyA' || e.code === 'ArrowLeft') inputs.left = true;
-          if (e.code === 'KeyD' || e.code === 'ArrowRight') inputs.right = true;
-          if (e.code === 'ShiftLeft') inputs.sprint = true;
-          if (e.code === 'Space') inputs.jump = true;
-      }
-    });
-    
-    document.addEventListener('keyup', (e) => {
-      if (document.activeElement === chatInput) return;
-      if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.forward = false; 
-      if (e.code === 'KeyS' || e.code === 'ArrowDown') inputs.backward = false;
-      if (e.code === 'KeyA' || e.code === 'ArrowLeft') inputs.left = false; 
-      if (e.code === 'KeyD' || e.code === 'ArrowRight') inputs.right = false;
-      if (e.code === 'ShiftLeft') inputs.sprint = false; 
-      if (e.code === 'Space') inputs.jump = false;
-    });
-
-    function createProjectileMesh(data) {
-      let s = data.size, geo, mat = new THREE.MeshStandardMaterial({ color: data.color, emissive: data.color, emissiveIntensity: 0.8 });
-      if (data.shape === 'lightning') {
-          const group = new THREE.Group(); const baseGeo = new THREE.CylinderGeometry(0.1, 0.1, 2);
-          const p1 = new THREE.Mesh(baseGeo, mat); p1.rotation.x = Math.PI/2; 
-          const p2 = new THREE.Mesh(baseGeo, mat); p2.rotation.x = Math.PI/2; p2.position.set(0.3, 0.1, 1.5); p2.rotation.y = 0.3;
-          group.add(p1, p2); scene.add(group); return group;
-      }
-      if (data.shape === 'icosahedron') geo = new THREE.IcosahedronGeometry(s * 1.5, 0);
-      else if (data.shape === 'octahedron') geo = new THREE.OctahedronGeometry(s * 2, 0);
-      else if (data.shape === 'tetrahedron') geo = new THREE.TetrahedronGeometry(s * 1.5, 0);
-      else if (data.shape === 'torusknot') geo = new THREE.TorusKnotGeometry(s * 1.5, s * 0.4, 64, 8);
-      else if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
-      else if (data.shape === 'spike') geo = new THREE.ConeGeometry(s, s*4, 4);
-      else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s*2); 
-      else if (data.shape === 'wall') { geo = new THREE.BoxGeometry(s
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => { console.log(`Server Auth Engine listening on port ${PORT}`); });
