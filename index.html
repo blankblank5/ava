@@ -200,15 +200,28 @@
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
     const grid = new THREE.GridHelper(2000, 500, 0x000000, 0x225522); grid.position.y = 0.05; scene.add(grid);
 
+    // --- FIXED JAIL BARS ---
     const jailGroup = new THREE.Group();
     jailGroup.position.set(20, 0.05, 20);
-    const plateGeo = new THREE.BoxGeometry(12, 0.5, 12); const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const plateGeo = new THREE.BoxGeometry(12, 0.5, 12); 
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
     jailGroup.add(new THREE.Mesh(plateGeo, blackMat)); 
     let roof = new THREE.Mesh(plateGeo, blackMat); roof.position.y = 10; jailGroup.add(roof);
-    const barGeo = new THREE.CylinderGeometry(0.08, 0.08, 10); const grayMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5 });
-    for(let x = -5.5; x <= 5.5; x += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, -5.5).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, 5.5).parent); }
-    for(let z = -4; z <= 4; z += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(-5.5, 5, z).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(5.5, 5, z).parent); }
+    
+    const barGeo = new THREE.CylinderGeometry(0.12, 0.12, 10); // Slightly thicker for visibility
+    const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 }); // Normal metallic gray
+    
+    // Create and add bars properly without the broken .parent chaining
+    for(let x = -5.5; x <= 5.5; x += 1.5) { 
+        let b1 = new THREE.Mesh(barGeo, grayMat); b1.position.set(x, 5, -5.5); jailGroup.add(b1);
+        let b2 = new THREE.Mesh(barGeo, grayMat); b2.position.set(x, 5, 5.5); jailGroup.add(b2);
+    }
+    for(let z = -4; z <= 4; z += 1.5) { 
+        let b3 = new THREE.Mesh(barGeo, grayMat); b3.position.set(-5.5, 5, z); jailGroup.add(b3);
+        let b4 = new THREE.Mesh(barGeo, grayMat); b4.position.set(5.5, 5, z); jailGroup.add(b4);
+    }
     scene.add(jailGroup);
+    // -----------------------
 
     window.initGame = (elementKey) => {
       const playerName = document.getElementById('player-name-input').value.trim() || "Player";
