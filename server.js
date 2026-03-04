@@ -14,15 +14,15 @@ let slowMo = { active: false, owner: null, expires: 0 };
 
 const ELEMENTS = {
     AIR: { name: 'AIR', color: 0xffffff, moves: [
-        { dmg: 12, cd: 400, speed: 60, shape: 'sphere', size: 0.2 }, // Air Blast
-        { dmg: 25, cd: 3000, speed: 45, shape: 'flat', size: 0.2, scale: 3, knockback: 1.5 }, // Wind Blade
-        { dmg: 0, cd: 4000, type: 'dash', maxCharges: 3 }, // Dash
-        { dmg: 6, cd: 8000, speed: 25, shape: 'sphere', count: 20, spread: 1.0, auto: true, size: 0.3, knockback: 1.0 } // Hurricane (Air balls stream)
+        { dmg: 12, cd: 400, speed: 60, shape: 'sphere', size: 0.2 }, 
+        { dmg: 25, cd: 3000, speed: 45, shape: 'flat', size: 0.2, scale: 3, knockback: 1.5 }, 
+        { dmg: 0, cd: 4000, type: 'dash', maxCharges: 3 }, 
+        { dmg: 6, cd: 8000, speed: 25, shape: 'sphere', count: 20, spread: 1.0, auto: true, size: 0.3, knockback: 1.0 } 
     ]},
     EARTH: { name: 'EARTH', color: 0x8b4513, moves: [
         { dmg: 25, cd: 800, speed: 35, grav: 0.8, shape: 'rock', size: 0.3 },
         { dmg: 15, cd: 4000, speed: 50, grav: 0, shape: 'spike', size: 0.3, rootTime: 2000 },
-        { dmg: 0, cd: 5000, type: 'wall' }, // Huge Rectangle Wall
+        { dmg: 0, cd: 5000, type: 'wall' }, 
         { dmg: 90, cd: 10000, type: 'meteor', shape: 'rock', size: 1.5, grav: 1.5 }
     ]},
     FIRE: { name: 'FIRE', color: 0xff4500, moves: [
@@ -34,8 +34,8 @@ const ELEMENTS = {
     WATER: { name: 'WATER', color: 0x0088ff, moves: [
         { dmg: 14, cd: 350, speed: 45, grav: 0.1, shape: 'sphere', size: 0.2 },
         { dmg: 35, cd: 4000, speed: 40, shape: 'flat', size: 0.2, scale: 5, knockback: 2.5 },
-        { dmg: 25, cd: 3000, speed: 60, shape: 'cylinder', size: 0.4 }, // Water Whip
-        { dmg: 15, cd: 8000, speed: 15, shape: 'cone', size: 0.8, knockback: 2.0, count: 8, spread: 0.8 } // Whirlpool
+        { dmg: 25, cd: 3000, speed: 60, shape: 'cylinder', size: 0.4 }, 
+        { dmg: 15, cd: 8000, speed: 15, shape: 'cone', size: 0.8, knockback: 2.0, count: 8, spread: 0.8 } 
     ]},
     LIGHTNING: { name: 'LIGHTNING', color: 0x00ffff, moves: [
         { dmg: 35, cd: 1500, speed: 120, shape: 'lightning', size: 0.2 },
@@ -111,7 +111,9 @@ io.on('connection', (socket) => {
         const dir = getDir(p.yaw, p.pitch);
         
         if (move.type === 'flash') {
-            slowMo.active = true; slowMo.owner = socket.id; slowMo.expires = now + 5000; return;
+            slowMo.active = true; slowMo.owner = socket.id; slowMo.expires = now + 8000; // Increased duration
+            io.emit('chatMessage', { name: "SYSTEM", text: `${p.name} used Flash! Time is slowing down...` });
+            return;
         }
 
         if(move.type === 'dash') {
@@ -131,13 +133,14 @@ io.on('connection', (socket) => {
         }
 
         if (move.type === 'wall') {
-            const dist = 6; // Spawns further out
+            const dist = 6; 
             projectiles.push({
                 id: "proj_" + (projCounter++), ownerId: socket.id,
                 x: p.x + (dir.x * dist), 
                 y: p.y + 2,
                 z: p.z + (dir.z * dist),
                 vx: 0, vy: 0, vz: 0, gravity: 0,
+                yaw: p.yaw, // Stores exact placement rotation
                 life: 400, dmg: 0, shape: 'wall', color: elemStats.color, size: 1.0, isSolid: true, hp: 10
             });
             return;
@@ -168,7 +171,15 @@ io.on('connection', (socket) => {
         if (!p || (p.role !== "admin" && p.role !== "owner")) return;
         const target = players[data.targetId];
         
-        if (data.action === 'nuke') { for(let id in players) { if(!players[id].godMode) { players[id].hp = 0; io.to(id).emit('death'); } } return; }
+        // --- NEW NUKE LOGIC ---
+        if (data.action === 'nuke') { 
+            if (p.role === "owner") {
+                io.emit('serverNuked', { by: p.name });
+                io.emit('chatMessage', { name: "SYSTEM", text: `${p.name} has nuked the server!` });
+            }
+            return; 
+        }
+
         if (!target) return;
 
         if (data.action === 'jail') { target.isJailed = !target.isJailed; if (target.isJailed) { target.x = 20; target.y = 1; target.z = 20; } }
@@ -230,7 +241,12 @@ setInterval(() => {
 
         if (p.isFrozen) continue;
 
-        let timeScale = (slowMo.active && id !== slowMo.owner) ? 0.2 : 1.0;
+        // Owner immunity to slowmo
+        let timeScale = 1.0;
+        if (slowMo.active && id !== slowMo.owner && p.role !== 'owner') {
+            timeScale = 0.2; 
+        }
+
         let moveX = 0, moveZ = 0;
         
         if (now > p.rootUntil) {
@@ -253,13 +269,35 @@ setInterval(() => {
         p.z += p.vz * DELTA * 3 * timeScale;
 
         for (const pr of projectiles) {
-            if (pr.isSolid) {
-                const dx = p.x - pr.x; const dz = p.z - pr.z;
-                const dist = Math.sqrt(dx*dx + dz*dz);
-                // Adjusted collision for wider wall
-                if (dist < 3.5 && p.y < pr.y + 4) {
-                    const push = 3.5 - dist;
-                    p.x += (dx/dist) * push; p.z += (dz/dist) * push;
+            // EXACT VISUAL HITBOX FOR EARTH WALL
+            if (pr.isSolid && pr.shape === 'wall') {
+                const dx = p.x - pr.x; 
+                const dz = p.z - pr.z;
+                
+                // Convert player position to wall's local space
+                const cos = Math.cos(pr.yaw);
+                const sin = Math.sin(pr.yaw);
+                let localX = dx * cos + dz * sin;
+                let localZ = -dx * sin + dz * cos;
+
+                // Wall is 6 wide (localX: ±3.0 + 0.2 buffer) and 1 deep (localZ: ±0.5 + 0.5 buffer)
+                if (Math.abs(localX) < 3.2 && Math.abs(localZ) < 1.0 && p.y < pr.y + 4) {
+                    // Push player out of the shortest side
+                    let penX = 3.2 - Math.abs(localX);
+                    let penZ = 1.0 - Math.abs(localZ);
+                    
+                    if (penX < penZ) {
+                        localX = localX > 0 ? 3.2 : -3.2;
+                    } else {
+                        localZ = localZ > 0 ? 1.0 : -1.0;
+                    }
+
+                    // Convert back to global space
+                    const newDx = localX * cos - localZ * sin;
+                    const newDz = localX * sin + localZ * cos;
+                    
+                    p.x = pr.x + newDx;
+                    p.z = pr.z + newDz;
                 }
             }
         }
@@ -289,7 +327,15 @@ setInterval(() => {
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const pr = projectiles[i];
-        let pTimeScale = (slowMo.active && pr.ownerId !== slowMo.owner) ? 0.2 : 1.0;
+        let pTimeScale = 1.0;
+        
+        // SLOW DOWN PROJECTILES MORE DURING FLASH
+        if (slowMo.active) {
+            const prOwner = players[pr.ownerId];
+            if (pr.ownerId !== slowMo.owner && (!prOwner || prOwner.role !== 'owner')) {
+                pTimeScale = 0.05; // Extremely slow for non-owners
+            }
+        }
 
         pr.x += pr.vx * DELTA * pTimeScale; pr.y += pr.vy * DELTA * pTimeScale; pr.z += pr.vz * DELTA * pTimeScale;
         pr.vy -= pr.gravity * pTimeScale; pr.life -= 1 * pTimeScale;
