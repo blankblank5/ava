@@ -12,12 +12,11 @@
     .el-btn:hover { transform: scale(1.05); }
     
     #admin-login { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9); z-index:200; flex-direction:column; align-items:center; justify-content:center; color:white; }
-    #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.9); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:300px; }
+    #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.9); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:300px; max-height: 80vh; overflow-y: auto; }
     .admin-btn { width: 100%; margin-bottom: 5px; padding: 8px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; }
     
-    /* Admin Tabs */
     .tab-container { display: flex; margin-bottom: 15px; border-bottom: 2px solid #444; }
-    .tab-btn { flex: 1; padding: 8px; background: #222; color: white; border: none; cursor: pointer; font-weight: bold; }
+    .tab-btn { flex: 1; padding: 8px; background: #222; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 12px; }
     .tab-btn.active { background: cyan; color: black; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
@@ -36,6 +35,13 @@
 
     #nametags-container { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
     .nametag { position: absolute; color: white; font-weight: bold; font-size: 14px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; transform: translate(-50%, -100%); display: none; }
+
+    /* Roblox Style Chat */
+    #chat-wrapper { position: absolute; top: 10px; left: 10px; width: 300px; height: 250px; background: rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 100; border-radius: 5px; border: 1px solid #444; }
+    #chat-messages { flex: 1; overflow-y: auto; padding: 10px; color: white; font-size: 14px; text-shadow: 1px 1px 0 #000; display: flex; flex-direction: column; gap: 4px; }
+    #chat-input { background: rgba(0,0,0,0.7); color: white; border: none; border-top: 1px solid #444; padding: 10px; outline: none; font-family: sans-serif; font-size: 14px; }
+    #chat-toggle-btn { position: absolute; top: 10px; right: 10px; z-index: 90; padding: 8px 12px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #555; cursor: pointer; border-radius: 5px; display: none; font-weight: bold; }
+    #chat-toggle-btn:hover { background: rgba(0,0,0,0.8); }
   </style>
 </head>
 <body>
@@ -43,6 +49,12 @@
   <div id="flash-overlay"></div>
   <div id="nametags-container"></div>
   <div id="compass-container"></div>
+
+  <button id="chat-toggle-btn" onclick="toggleChat()">Chat [ON]</button>
+  <div id="chat-wrapper">
+      <div id="chat-messages"></div>
+      <input type="text" id="chat-input" placeholder="Press '/' or click here to chat..." maxlength="100">
+  </div>
 
   <div id="start-screen">
     <h1 style="font-size: 50px; margin-bottom: 10px; color: #fff; text-shadow: 0 0 10px #fff;">ELEMENTAL ARENA</h1>
@@ -81,7 +93,6 @@
     <div id="tab-give" class="tab-content">
         <select id="give-player-list" style="width:100%; padding:8px; margin-bottom:10px; font-weight:bold;"></select>
         
-        <button class="admin-btn" onclick="sendAdminAction('giveAdmin', document.getElementById('give-player-list').value)" style="background:#aa22aa; color:white;">Give Admin Role (Owner Only)</button>
         <button class="admin-btn" onclick="sendAdminAction('heal', document.getElementById('give-player-list').value)" style="background:#00aa00; color:white;">Heal Player</button>
         <button class="admin-btn" onclick="sendAdminAction('godmode', document.getElementById('give-player-list').value)" style="background:#88aa00;">Toggle God Mode</button>
         <button class="admin-btn" onclick="sendAdminAction('nocooldown', document.getElementById('give-player-list').value)" style="background:#bb8800;">Toggle No Cooldowns</button>
@@ -91,19 +102,38 @@
             <option value="AIR">Air</option><option value="EARTH">Earth</option>
             <option value="FIRE">Fire</option><option value="WATER">Water</option>
         </select>
-        <button class="admin-btn" onclick="givePower()" style="background: #aaa;">Give Standard Element</button>
+        <button class="admin-btn" onclick="givePower()" style="background: #444; color:white;">Give Standard Element</button>
+        <button class="admin-btn" onclick="sendAdminAction('giveAll', document.getElementById('give-player-list').value)" style="background:#2288cc; color:white;">Give ALL Elements</button>
+        
+        <div id="owner-give-section" style="display:none; margin-top:10px;">
+            <h4 style="margin:5px 0; color:#ff4444;">Owner Actions</h4>
+            <button class="admin-btn" onclick="sendAdminAction('removeAllPowers', document.getElementById('give-player-list').value)" style="background:#ff3333; color:white;">Remove All Powers (Revert)</button>
+        </div>
     </div>
 
     <div id="tab-server" class="tab-content">
         <select id="server-player-list" style="width:100%; padding:8px; margin-bottom:10px; font-weight:bold;"></select>
+        
         <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
             <button class="admin-btn" onclick="sendAdminAction('jail', document.getElementById('server-player-list').value)" style="flex:1;">Jail</button>
             <button class="admin-btn" onclick="sendAdminAction('freeze', document.getElementById('server-player-list').value)" style="flex:1;">Freeze</button>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
+            <button class="admin-btn" onclick="sendAdminAction('mute', document.getElementById('server-player-list').value)" style="flex:1; background:#cc7700; color:white;">Mute</button>
+            <button class="admin-btn" onclick="sendAdminAction('kick', document.getElementById('server-player-list').value)" style="flex:1; background:#aa0000; color:white;">Kick</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
             <button class="admin-btn" onclick="sendAdminAction('tp', document.getElementById('server-player-list').value)" style="flex:1;">TP To</button>
             <button class="admin-btn" onclick="sendAdminAction('bring', document.getElementById('server-player-list').value)" style="flex:1;">Bring</button>
         </div>
+        
+        <div id="owner-server-section" style="display:none;">
+            <hr style="border-color:#444;">
+            <h4 style="margin:5px 0; color:#ff4444;">Owner Actions</h4>
+            <button class="admin-btn" onclick="sendAdminAction('giveAdmin', document.getElementById('server-player-list').value)" style="background:#aa22aa; color:white;">Give Admin Role</button>
+            <button class="admin-btn" onclick="sendAdminAction('stripAdmin', document.getElementById('server-player-list').value)" style="background:#ff3333; color:white;">Strip Admin Role & Powers</button>
+        </div>
+
         <hr style="border-color:#444;">
         <button class="admin-btn" onclick="sendAdminAction('nuke', null)" style="background:darkred; color:white;">NUKE SERVER</button>
     </div>
@@ -131,7 +161,6 @@
   <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
 
-    // THIS IS FIXED: Points directly to Render now
     const socket = io('https://ava-pwjs.onrender.com'); 
 
     let isGameStarted = false;
@@ -166,17 +195,17 @@
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
     const grid = new THREE.GridHelper(2000, 500, 0x000000, 0x225522); grid.position.y = 0.05; scene.add(grid);
 
+    // THIN GRAY BARS FOR JAIL
     const jailGroup = new THREE.Group();
     jailGroup.position.set(20, 0.05, 20);
     const plateGeo = new THREE.BoxGeometry(12, 0.5, 12); const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
     jailGroup.add(new THREE.Mesh(plateGeo, blackMat)); 
     let roof = new THREE.Mesh(plateGeo, blackMat); roof.position.y = 10; jailGroup.add(roof);
-    const barGeo = new THREE.CylinderGeometry(0.2, 0.2, 10); const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 });
+    const barGeo = new THREE.CylinderGeometry(0.08, 0.08, 10); const grayMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5 });
     for(let x = -5.5; x <= 5.5; x += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, -5.5).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, 5.5).parent); }
     for(let z = -4; z <= 4; z += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(-5.5, 5, z).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(5.5, 5, z).parent); }
     scene.add(jailGroup);
 
-    // THIS IS FIXED: The join event listener is pulled out so it always hears the server
     window.initGame = (elementKey) => {
       const playerName = document.getElementById('player-name-input').value.trim() || "Player";
       socket.emit('joinGame', { name: playerName, element: elementKey });
@@ -188,6 +217,8 @@
         document.getElementById('game-ui').style.display = 'block';
         document.getElementById('moves-container').style.display = 'flex';
         document.getElementById('compass-container').style.display = 'block';
+        document.getElementById('chat-wrapper').style.display = 'flex';
+        document.getElementById('chat-toggle-btn').style.display = 'block';
         document.getElementById('display-name').innerText = document.getElementById('player-name-input').value.trim() || "Player";
         isGameStarted = true; 
         document.body.requestPointerLock();
@@ -198,6 +229,28 @@
     document.getElementById('btn-fire').addEventListener('click', () => initGame('FIRE'));
     document.getElementById('btn-water').addEventListener('click', () => initGame('WATER'));
 
+    // Chat Logic
+    window.toggleChat = () => {
+        const chat = document.getElementById('chat-wrapper');
+        const btn = document.getElementById('chat-toggle-btn');
+        if (chat.style.display === 'none') { chat.style.display = 'flex'; btn.innerText = "Chat [ON]"; } 
+        else { chat.style.display = 'none'; btn.innerText = "Chat [OFF]"; }
+    };
+
+    const chatInput = document.getElementById('chat-input');
+    const sendChat = () => {
+        if(chatInput.value.trim() !== '') { socket.emit('chatMessage', chatInput.value); chatInput.value = ''; }
+        document.body.requestPointerLock();
+    };
+
+    socket.on('chatMessage', (data) => {
+        const chatBox = document.getElementById('chat-messages');
+        const msgDiv = document.createElement('div');
+        msgDiv.innerHTML = `<span style="font-weight:bold; color:#ffcc00;">[${data.name}]:</span> ${data.text}`;
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === document.body) {
         inputs.yaw -= e.movementX * 0.002; inputs.pitch -= e.movementY * 0.002;
@@ -207,6 +260,8 @@
 
     document.addEventListener('click', (e) => {
       if (!isGameStarted) return;
+      if (e.target.id === 'chat-toggle-btn' || e.target.id === 'chat-input' || e.target.classList.contains('admin-btn')) return;
+      
       if (document.pointerLockElement !== document.body && document.getElementById('admin-panel').style.display !== 'block' && document.getElementById('admin-login').style.display !== 'flex') {
           document.body.requestPointerLock();
       }
@@ -216,6 +271,21 @@
     
     document.addEventListener('keydown', (e) => {
       if (!isGameStarted) return;
+      
+      // Prevent game bindings if typing in chat
+      if (document.activeElement === chatInput) {
+          if (e.key === 'Enter') sendChat();
+          return;
+      }
+
+      if (e.key === 'Enter' || e.key === '/') {
+          e.preventDefault();
+          document.exitPointerLock();
+          document.getElementById('chat-wrapper').style.display = 'flex';
+          document.getElementById('chat-toggle-btn').innerText = "Chat [ON]";
+          chatInput.focus();
+          return;
+      }
       
       if (e.code === 'KeyM') {
          const login = document.getElementById('admin-login'); const panel = document.getElementById('admin-panel');
@@ -248,6 +318,7 @@
     });
     
     document.addEventListener('keyup', (e) => {
+      if (document.activeElement === chatInput) return;
       if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.forward = false; 
       if (e.code === 'KeyS' || e.code === 'ArrowDown') inputs.backward = false;
       if (e.code === 'KeyA' || e.code === 'ArrowLeft') inputs.left = false; 
@@ -264,7 +335,6 @@
           const p2 = new THREE.Mesh(baseGeo, mat); p2.rotation.x = Math.PI/2; p2.position.set(0.3, 0.1, 1.5); p2.rotation.y = 0.3;
           group.add(p1, p2); scene.add(group); return group;
       }
-      
       if (data.shape === 'icosahedron') geo = new THREE.IcosahedronGeometry(s * 1.5, 0);
       else if (data.shape === 'octahedron') geo = new THREE.OctahedronGeometry(s * 2, 0);
       else if (data.shape === 'tetrahedron') geo = new THREE.TetrahedronGeometry(s * 1.5, 0);
@@ -285,7 +355,13 @@
             document.getElementById('admin-login').style.display='none'; 
             document.getElementById('admin-panel').style.display='block'; 
             window.sessionRole = pass === '1FOREST1' ? 'admin' : 'owner'; 
+            
             document.getElementById('panel-title').innerText = window.sessionRole === 'owner' ? "Owner Panel" : "Admin Panel";
+            if(window.sessionRole === 'owner') {
+                document.getElementById('owner-give-section').style.display = 'block';
+                document.getElementById('owner-server-section').style.display = 'block';
+            }
+            
             socket.emit('setRole', window.sessionRole);
             document.getElementById('admin-pass').value = ""; 
         } else { alert("Incorrect Password!"); }
