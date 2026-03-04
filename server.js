@@ -13,7 +13,6 @@ let projCounter = 0;
 let slowMo = { active: false, owner: null, expires: 0 };
 
 // --- ELEMENT & MOVE DATA ---
-// Restored normal shapes for standard projectiles, kept special shapes for AoE/Utility
 const ELEMENTS = {
     AIR: { name: 'AIR', color: 0xffffff, moves: [
         { dmg: 12, cd: 400, speed: 60, shape: 'sphere', size: 0.2 }, // Wind Blade
@@ -28,10 +27,10 @@ const ELEMENTS = {
         { dmg: 90, cd: 10000, type: 'meteor', shape: 'rock', size: 1.5, grav: 1.5 } // Meteor
     ]},
     FIRE: { name: 'FIRE', color: 0xff4500, moves: [
-        { dmg: 15, cd: 400, speed: 55, shape: 'sphere', size: 0.2 }, // Fireball
-        { dmg: 40, cd: 3000, speed: 30, shape: 'sphere', size: 0.5, knockback: 0.5 }, // Fire Blast
-        { dmg: 5, cd: 4000, speed: 20, shape: 'sphere', count: 15, spread: 1.2, auto: true, size: 0.2 }, // Flamethrower
-        { dmg: 120, cd: 12000, type: 'meteor', shape: 'sphere', size: 1.0, grav: 1.0 } // Fire Storm
+        { dmg: 15, cd: 400, speed: 55, shape: 'icosahedron', size: 0.2 }, // Fireball
+        { dmg: 40, cd: 3000, speed: 30, shape: 'octahedron', size: 0.5, knockback: 0.5 }, // Fire Blast
+        { dmg: 5, cd: 4000, speed: 20, shape: 'tetrahedron', count: 15, spread: 1.2, auto: true, size: 0.2 }, // Flamethrower
+        { dmg: 120, cd: 12000, type: 'meteor', shape: 'torusknot', size: 1.0, grav: 1.0 } // Fire Storm
     ]},
     WATER: { name: 'WATER', color: 0x0088ff, moves: [
         { dmg: 14, cd: 350, speed: 45, grav: 0.1, shape: 'sphere', size: 0.2 }, // Water Bullet
@@ -69,7 +68,11 @@ io.on('connection', (socket) => {
         socket.emit('joinSuccess', { id: socket.id });
     });
 
-    socket.on('setRole', (role) => { if(players[socket.id] && (role === "admin" || role === "owner")) players[socket.id].role = role; });
+    socket.on('setRole', (role) => { 
+        if(players[socket.id] && (role === "admin" || role === "owner")) {
+            players[socket.id].role = role; 
+        }
+    });
 
     socket.on('input', (data) => {
         const p = players[socket.id];
@@ -172,9 +175,10 @@ io.on('connection', (socket) => {
         else if (data.action === 'tp' && target) { p.x = target.x; p.y = target.y + 2; p.z = target.z; }
         else if (data.action === 'bring' && target) { target.x = p.x; target.y = p.y + 2; target.z = p.z; }
         else if (data.action === 'givePower' && target) { if (!target.unlockedElements.includes(data.value)) target.unlockedElements.push(data.value); target.element = data.value; target.charges = ELEMENTS[data.value].moves.map(m => m.maxCharges || 1); }
-        else if (data.action === 'giveAllPowers' && target) { target.unlockedElements = ['AIR', 'EARTH', 'FIRE', 'WATER']; }
+        else if (data.action === 'giveAllPowers' && target) { target.unlockedElements = ['AIR', 'EARTH', 'FIRE', 'WATER', 'LIGHTNING']; }
         else if (data.action === 'godmode') { p.godMode = !p.godMode; if(p.godMode) p.hp = 100; }
         else if (data.action === 'nocooldown') { p.noCooldowns = !p.noCooldowns; }
+        else if (data.action === 'equipLightning') { if (!p.unlockedElements.includes('LIGHTNING')) p.unlockedElements.push('LIGHTNING'); p.element = 'LIGHTNING'; p.charges = ELEMENTS['LIGHTNING'].moves.map(m => m.maxCharges || 1); }
     });
 
     socket.on('disconnect', () => { delete players[socket.id]; });
