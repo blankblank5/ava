@@ -341,19 +341,35 @@ setInterval(() => {
         pr.vy -= pr.gravity * pTimeScale; pr.life -= 1 * pTimeScale;
 
         let destroyed = false;
+        
+        // --- NEW WALL HITBOX LOGIC ---
         if (!pr.isSolid && pr.dmg > 0) {
             for (let j = projectiles.length - 1; j >= 0; j--) {
                 const wall = projectiles[j];
-                if (wall.isSolid && pr.ownerId !== wall.ownerId) {
-                    const dx = pr.x - wall.x; const dy = pr.y - wall.y; const dz = pr.z - wall.z;
-                    if (Math.sqrt(dx*dx + dy*dy + dz*dz) < 3.5) { 
+                // Only check collisions on enemy walls
+                if (wall.isSolid && pr.ownerId !== wall.ownerId && wall.shape === 'wall') {
+                    const dx = pr.x - wall.x;
+                    const dy = pr.y - wall.y; 
+                    const dz = pr.z - wall.z;
+                    
+                    // 1. Convert the projectile's position into the wall's exact rotated angle
+                    const cos = Math.cos(wall.yaw);
+                    const sin = Math.sin(wall.yaw);
+                    const localX = dx * cos + dz * sin;
+                    const localZ = -dx * sin + dz * cos;
+
+                    // 2. Check against the wall's EXACT dimensions (Width: 6, Height: 4, Depth: 1)
+                    // We add a tiny 0.2 buffer so fast-moving spells don't clip through between server ticks
+                    if (Math.abs(localX) <= 3.2 && Math.abs(localZ) <= 0.7 && Math.abs(dy) <= 2.2) { 
                         wall.hp -= 1;
                         if (wall.hp <= 0) wall.life = 0;
-                        destroyed = true; break;
+                        destroyed = true; 
+                        break; // Stop checking other walls
                     }
                 }
             }
         }
+        // --- END OF WALL HITBOX LOGIC ---
 
         if (!destroyed && !pr.isSolid) {
             for (const pid in players) {
