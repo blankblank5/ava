@@ -131,7 +131,8 @@
   <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
 
-    const socket = io('http://localhost:3000'); // CHANGE THIS IF UPLOADING TO RENDER
+    // THIS IS FIXED: Points directly to Render now
+    const socket = io('https://ava-pwjs.onrender.com'); 
 
     let isGameStarted = false;
     window.myId = null;
@@ -175,19 +176,22 @@
     for(let z = -4; z <= 4; z += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(-5.5, 5, z).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(5.5, 5, z).parent); }
     scene.add(jailGroup);
 
+    // THIS IS FIXED: The join event listener is pulled out so it always hears the server
     window.initGame = (elementKey) => {
       const playerName = document.getElementById('player-name-input').value.trim() || "Player";
       socket.emit('joinGame', { name: playerName, element: elementKey });
-      socket.on('joinSuccess', (data) => {
-          window.myId = data.id;
-          document.getElementById('start-screen').style.display = 'none';
-          document.getElementById('game-ui').style.display = 'block';
-          document.getElementById('moves-container').style.display = 'flex';
-          document.getElementById('compass-container').style.display = 'block';
-          document.getElementById('display-name').innerText = playerName;
-          isGameStarted = true; document.body.requestPointerLock();
-      });
     };
+
+    socket.on('joinSuccess', (data) => {
+        window.myId = data.id;
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-ui').style.display = 'block';
+        document.getElementById('moves-container').style.display = 'flex';
+        document.getElementById('compass-container').style.display = 'block';
+        document.getElementById('display-name').innerText = document.getElementById('player-name-input').value.trim() || "Player";
+        isGameStarted = true; 
+        document.body.requestPointerLock();
+    });
 
     document.getElementById('btn-air').addEventListener('click', () => initGame('AIR'));
     document.getElementById('btn-earth').addEventListener('click', () => initGame('EARTH'));
@@ -234,7 +238,6 @@
           if (e.code === 'KeyE') socket.emit('useMove', 2);
           if (e.code === 'KeyR') socket.emit('useMove', 3);
           
-          // MOVEMENT UPDATED TO SUPPORT WASD AND ARROW KEYS
           if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.forward = true;
           if (e.code === 'KeyS' || e.code === 'ArrowDown') inputs.backward = true;
           if (e.code === 'KeyA' || e.code === 'ArrowLeft') inputs.left = true;
@@ -269,7 +272,6 @@
       else if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
       else if (data.shape === 'spike') geo = new THREE.ConeGeometry(s, s*4, 4);
       else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s*2); 
-      // NEW TALL WALL GEOMETRY
       else if (data.shape === 'wall') { geo = new THREE.BoxGeometry(s * 4, s * 10, s * 2); mat.transparent = true; mat.opacity = 0.9; }
       else if (data.shape === 'cone') { geo = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geo.rotateX(Math.PI); }
       else geo = new THREE.SphereGeometry(s, 8, 8); 
@@ -291,7 +293,6 @@
     
     window.closeAdminLogin = () => { document.getElementById('admin-login').style.display='none'; document.body.requestPointerLock(); };
     
-    // UI TAB SWITCHER
     window.switchTab = (tabId) => {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -299,7 +300,6 @@
         document.getElementById('btn-tab-' + tabId).classList.add('active');
     };
 
-    // UPDATED ADMIN ACTION COMMAND
     window.sendAdminAction = (action, targetId) => { socket.emit('adminCommand', { action: action, targetId: targetId }); };
     window.givePower = () => { socket.emit('adminCommand', { action: 'givePower', targetId: document.getElementById('give-player-list').value, value: document.getElementById('power-list').value }); };
 
@@ -315,7 +315,6 @@
 
       const compass = document.getElementById('compass-container'); compass.innerHTML = ''; 
 
-      // Update both dropdowns
       if (document.getElementById('admin-panel').style.display === 'block') {
           const giveSelect = document.getElementById('give-player-list');
           const serverSelect = document.getElementById('server-player-list');
@@ -386,7 +385,6 @@
               projectileMeshes[pr.id].rotation.x += 0.1; projectileMeshes[pr.id].rotation.y += 0.1;
           }
 
-          // Wall specific logic to align correctly and lock rotation
           if (pr.shape === 'wall') {
               if (pr.life === 300) { projectileMeshes[pr.id].lookAt(pr.x - Math.cos(state.players[pr.ownerId].yaw), pr.y, pr.z + Math.sin(state.players[pr.ownerId].yaw)); }
           } else if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
