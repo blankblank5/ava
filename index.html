@@ -12,9 +12,16 @@
     .el-btn:hover { transform: scale(1.05); }
     
     #admin-login { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9); z-index:200; flex-direction:column; align-items:center; justify-content:center; color:white; }
-    #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.8); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:260px; }
-    .admin-btn { width: 100%; margin-bottom: 5px; padding: 5px; cursor: pointer; font-weight: bold; }
+    #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.9); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:300px; }
+    .admin-btn { width: 100%; margin-bottom: 5px; padding: 8px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; }
     
+    /* Admin Tabs */
+    .tab-container { display: flex; margin-bottom: 15px; border-bottom: 2px solid #444; }
+    .tab-btn { flex: 1; padding: 8px; background: #222; color: white; border: none; cursor: pointer; font-weight: bold; }
+    .tab-btn.active { background: cyan; color: black; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
     #moves-container { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; }
     .move-slot { background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 5px; width: 80px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; overflow: hidden; }
     .move-key { position: absolute; top: 5px; left: 5px; font-size: 12px; font-weight: bold; color: #ffcc00; }
@@ -23,7 +30,6 @@
     .cooldown-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(255,0,0,0.5); z-index: 1; }
 
     #flash-overlay { position: absolute; inset: 0; background: rgba(0, 50, 255, 0.25); pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 50; }
-
     #compass-container { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 400px; height: 30px; background: rgba(0,0,0,0.5); border: 2px solid #333; overflow: hidden; z-index: 10; display: none; }
     .compass-dot { position: absolute; top: 5px; width: 8px; height: 8px; background: white; border-radius: 50%; transform: translateX(-50%); }
     .compass-name { position: absolute; top: 15px; font-size: 10px; color: white; transform: translateX(-50%); white-space: nowrap; }
@@ -56,29 +62,51 @@
     <button onclick="checkAdminLogin()" style="margin-top:10px; padding:10px 20px; font-size: 18px;">Login</button>
     <button onclick="closeAdminLogin()" style="margin-top:10px; padding:5px 10px; background: red; color: white; border: none;">Cancel</button>
   </div>
+  
   <div id="admin-panel">
     <h3 id="panel-title" style="margin-top:0; color:cyan; text-align:center;">Admin Panel</h3>
-    <select id="player-list" style="width:100%; padding:5px; margin-bottom:10px;"></select>
-    <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
-      <button onclick="sendAdminAction('jail')" style="flex:1; padding:5px;">Jail</button>
-      <button onclick="sendAdminAction('nuke')" style="flex:1; padding:5px; background:darkred; color:white;">Nuke</button>
-      <button onclick="sendAdminAction('freeze')" style="flex:1; padding:5px;">Freeze</button>
-      <button onclick="sendAdminAction('tp')" style="flex:1; padding:5px;">TP To</button>
-      <button onclick="sendAdminAction('bring')" style="flex:1; padding:5px;">Bring</button>
+    
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('self')" id="btn-tab-self">Self</button>
+        <button class="tab-btn" onclick="switchTab('give')" id="btn-tab-give">Give</button>
+        <button class="tab-btn" onclick="switchTab('server')" id="btn-tab-server">Server</button>
     </div>
-    <hr style="border-color:#444;">
-    <button class="admin-btn" onclick="sendAdminAction('giveAllPowers')" style="background: #aa3333; color: white;">Give All Elements</button>
-    <button class="admin-btn" onclick="givePower()" style="background: #aaa;">Give Specific Element</button>
-    <select id="power-list" style="width:100%; padding:5px; margin-bottom:10px;">
-        <option value="AIR">Air</option>
-        <option value="EARTH">Earth</option>
-        <option value="FIRE">Fire</option>
-        <option value="WATER">Water</option>
-    </select>
-    <hr style="border-color:#444;">
-    <button class="admin-btn" onclick="sendAdminAction('equipLightning')" style="background:blue; color:white;">Equip Lightning (Self)</button>
-    <button class="admin-btn" onclick="sendAdminAction('godmode')">Toggle Godmode</button>
-    <button class="admin-btn" onclick="sendAdminAction('nocooldown')">Toggle No Cooldowns</button>
+
+    <div id="tab-self" class="tab-content active">
+        <button class="admin-btn" onclick="sendAdminAction('godmode', window.myId)" style="background:#88aa00;">Toggle Godmode (Auto-Heal)</button>
+        <button class="admin-btn" onclick="sendAdminAction('nocooldown', window.myId)" style="background:#bb8800;">Toggle No Cooldowns</button>
+        <button class="admin-btn" onclick="sendAdminAction('equipLightning', window.myId)" style="background:#0055ff; color:white;">Equip Lightning</button>
+    </div>
+
+    <div id="tab-give" class="tab-content">
+        <select id="give-player-list" style="width:100%; padding:8px; margin-bottom:10px; font-weight:bold;"></select>
+        
+        <button class="admin-btn" onclick="sendAdminAction('giveAdmin', document.getElementById('give-player-list').value)" style="background:#aa22aa; color:white;">Give Admin Role (Owner Only)</button>
+        <button class="admin-btn" onclick="sendAdminAction('heal', document.getElementById('give-player-list').value)" style="background:#00aa00; color:white;">Heal Player</button>
+        <button class="admin-btn" onclick="sendAdminAction('godmode', document.getElementById('give-player-list').value)" style="background:#88aa00;">Toggle God Mode</button>
+        <button class="admin-btn" onclick="sendAdminAction('nocooldown', document.getElementById('give-player-list').value)" style="background:#bb8800;">Toggle No Cooldowns</button>
+        
+        <hr style="border-color:#444;">
+        <select id="power-list" style="width:100%; padding:5px; margin-bottom:5px;">
+            <option value="AIR">Air</option><option value="EARTH">Earth</option>
+            <option value="FIRE">Fire</option><option value="WATER">Water</option>
+        </select>
+        <button class="admin-btn" onclick="givePower()" style="background: #aaa;">Give Standard Element</button>
+    </div>
+
+    <div id="tab-server" class="tab-content">
+        <select id="server-player-list" style="width:100%; padding:8px; margin-bottom:10px; font-weight:bold;"></select>
+        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
+            <button class="admin-btn" onclick="sendAdminAction('jail', document.getElementById('server-player-list').value)" style="flex:1;">Jail</button>
+            <button class="admin-btn" onclick="sendAdminAction('freeze', document.getElementById('server-player-list').value)" style="flex:1;">Freeze</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
+            <button class="admin-btn" onclick="sendAdminAction('tp', document.getElementById('server-player-list').value)" style="flex:1;">TP To</button>
+            <button class="admin-btn" onclick="sendAdminAction('bring', document.getElementById('server-player-list').value)" style="flex:1;">Bring</button>
+        </div>
+        <hr style="border-color:#444;">
+        <button class="admin-btn" onclick="sendAdminAction('nuke', null)" style="background:darkred; color:white;">NUKE SERVER</button>
+    </div>
   </div>
 
   <div style="position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: difference; z-index: 10;"></div>
@@ -103,11 +131,10 @@
   <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
 
-    // REMEMBER TO KEEP YOUR RENDER URL HERE
-    const socket = io('https://ava-pwjs.onrender.com');
+    const socket = io('http://localhost:3000'); // CHANGE THIS IF UPLOADING TO RENDER
 
     let isGameStarted = false;
-    let myId = null;
+    window.myId = null;
     let myElement = "AIR";
     window.sessionRole = "player"; 
 
@@ -120,26 +147,19 @@
     };
 
     const inputs = { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, yaw: 0, pitch: 0 };
-    const playerMeshes = {};
-    const projectileMeshes = {};
-    const nametagElements = {};
+    const playerMeshes = {}; const projectileMeshes = {}; const nametagElements = {};
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.Fog(0x87ceeb, 20, 150);
-
+    scene.background = new THREE.Color(0x87ceeb); scene.fog = new THREE.Fog(0x87ceeb, 20, 150);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
     camera.position.set(0, 20, 0); 
-
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
+    renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
     const light = new THREE.DirectionalLight(0xffffff, 1);
     light.position.set(50, 100, 50); light.castShadow = true;
-    scene.add(new THREE.AmbientLight(0x404040, 1.5));
-    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x404040, 1.5)); scene.add(light);
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ color: 0x33aa33 }));
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
@@ -147,24 +167,19 @@
 
     const jailGroup = new THREE.Group();
     jailGroup.position.set(20, 0.05, 20);
-    const plateGeo = new THREE.BoxGeometry(12, 0.5, 12);
-    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const plateGeo = new THREE.BoxGeometry(12, 0.5, 12); const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
     jailGroup.add(new THREE.Mesh(plateGeo, blackMat)); 
     let roof = new THREE.Mesh(plateGeo, blackMat); roof.position.y = 10; jailGroup.add(roof);
-    const barGeo = new THREE.CylinderGeometry(0.2, 0.2, 10);
-    const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 });
+    const barGeo = new THREE.CylinderGeometry(0.2, 0.2, 10); const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 });
     for(let x = -5.5; x <= 5.5; x += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, -5.5).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(x, 5, 5.5).parent); }
     for(let z = -4; z <= 4; z += 1.5) { jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(-5.5, 5, z).parent); jailGroup.add(new THREE.Mesh(barGeo, grayMat).position.set(5.5, 5, z).parent); }
     scene.add(jailGroup);
-
-    const myBody = new THREE.Group();
-    scene.add(myBody);
 
     window.initGame = (elementKey) => {
       const playerName = document.getElementById('player-name-input').value.trim() || "Player";
       socket.emit('joinGame', { name: playerName, element: elementKey });
       socket.on('joinSuccess', (data) => {
-          myId = data.id;
+          window.myId = data.id;
           document.getElementById('start-screen').style.display = 'none';
           document.getElementById('game-ui').style.display = 'block';
           document.getElementById('moves-container').style.display = 'flex';
@@ -181,8 +196,7 @@
 
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === document.body) {
-        inputs.yaw -= e.movementX * 0.002;
-        inputs.pitch -= e.movementY * 0.002;
+        inputs.yaw -= e.movementX * 0.002; inputs.pitch -= e.movementY * 0.002;
         inputs.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, inputs.pitch));
       }
     });
@@ -200,29 +214,14 @@
       if (!isGameStarted) return;
       
       if (e.code === 'KeyM') {
-         const login = document.getElementById('admin-login');
-         const panel = document.getElementById('admin-panel');
-         
+         const login = document.getElementById('admin-login'); const panel = document.getElementById('admin-panel');
          if (window.sessionRole === 'admin' || window.sessionRole === 'owner') {
-             // Already logged in, toggle panel
-             if (panel.style.display === 'none' || panel.style.display === '') {
-                 document.exitPointerLock();
-                 panel.style.display = 'block';
-             } else {
-                 panel.style.display = 'none';
-                 document.body.requestPointerLock();
-             }
+             if (panel.style.display === 'none' || panel.style.display === '') { document.exitPointerLock(); panel.style.display = 'block'; } 
+             else { panel.style.display = 'none'; document.body.requestPointerLock(); }
          } else {
-             // Not logged in, toggle login screen
-             if (login.style.display === 'none' || login.style.display === '') {
-                 document.exitPointerLock();
-                 login.style.display = 'flex';
-             } else {
-                 login.style.display = 'none';
-                 document.body.requestPointerLock();
-             }
-         }
-         return;
+             if (login.style.display === 'none' || login.style.display === '') { document.exitPointerLock(); login.style.display = 'flex'; } 
+             else { login.style.display = 'none'; document.body.requestPointerLock(); }
+         } return;
       }
 
       if (document.pointerLockElement === document.body) {
@@ -234,187 +233,148 @@
           if (e.code === 'KeyQ') socket.emit('useMove', 1);
           if (e.code === 'KeyE') socket.emit('useMove', 2);
           if (e.code === 'KeyR') socket.emit('useMove', 3);
-          if (e.code === 'KeyW') inputs.forward = true;
-          if (e.code === 'KeyS') inputs.backward = true;
-          if (e.code === 'KeyA') inputs.left = true;
-          if (e.code === 'KeyD') inputs.right = true;
+          
+          // MOVEMENT UPDATED TO SUPPORT WASD AND ARROW KEYS
+          if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.forward = true;
+          if (e.code === 'KeyS' || e.code === 'ArrowDown') inputs.backward = true;
+          if (e.code === 'KeyA' || e.code === 'ArrowLeft') inputs.left = true;
+          if (e.code === 'KeyD' || e.code === 'ArrowRight') inputs.right = true;
           if (e.code === 'ShiftLeft') inputs.sprint = true;
           if (e.code === 'Space') inputs.jump = true;
       }
     });
+    
     document.addEventListener('keyup', (e) => {
-      if (e.code === 'KeyW') inputs.forward = false; if (e.code === 'KeyS') inputs.backward = false;
-      if (e.code === 'KeyA') inputs.left = false; if (e.code === 'KeyD') inputs.right = false;
-      if (e.code === 'ShiftLeft') inputs.sprint = false; if (e.code === 'Space') inputs.jump = false;
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.forward = false; 
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') inputs.backward = false;
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') inputs.left = false; 
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') inputs.right = false;
+      if (e.code === 'ShiftLeft') inputs.sprint = false; 
+      if (e.code === 'Space') inputs.jump = false;
     });
 
     function createProjectileMesh(data) {
       let s = data.size, geo, mat = new THREE.MeshStandardMaterial({ color: data.color, emissive: data.color, emissiveIntensity: 0.8 });
       if (data.shape === 'lightning') {
-          const group = new THREE.Group();
-          const baseGeo = new THREE.CylinderGeometry(0.1, 0.1, 2);
+          const group = new THREE.Group(); const baseGeo = new THREE.CylinderGeometry(0.1, 0.1, 2);
           const p1 = new THREE.Mesh(baseGeo, mat); p1.rotation.x = Math.PI/2; 
           const p2 = new THREE.Mesh(baseGeo, mat); p2.rotation.x = Math.PI/2; p2.position.set(0.3, 0.1, 1.5); p2.rotation.y = 0.3;
           group.add(p1, p2); scene.add(group); return group;
       }
       
-      // Fire geometric shapes
       if (data.shape === 'icosahedron') geo = new THREE.IcosahedronGeometry(s * 1.5, 0);
       else if (data.shape === 'octahedron') geo = new THREE.OctahedronGeometry(s * 2, 0);
       else if (data.shape === 'tetrahedron') geo = new THREE.TetrahedronGeometry(s * 1.5, 0);
       else if (data.shape === 'torusknot') geo = new THREE.TorusKnotGeometry(s * 1.5, s * 0.4, 64, 8);
-      // Other shapes
       else if (data.shape === 'rock') geo = new THREE.DodecahedronGeometry(s * 2, 0); 
       else if (data.shape === 'spike') geo = new THREE.ConeGeometry(s, s*4, 4);
       else if (data.shape === 'flat') geo = new THREE.BoxGeometry(s*5, s/2, s*2); 
+      // NEW TALL WALL GEOMETRY
+      else if (data.shape === 'wall') { geo = new THREE.BoxGeometry(s * 4, s * 10, s * 2); mat.transparent = true; mat.opacity = 0.9; }
       else if (data.shape === 'cone') { geo = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geo.rotateX(Math.PI); }
-      else geo = new THREE.SphereGeometry(s, 8, 8); // Default fallback
+      else geo = new THREE.SphereGeometry(s, 8, 8); 
       
-      const mesh = new THREE.Mesh(geo, mat); 
-      scene.add(mesh); 
-      return mesh;
+      const mesh = new THREE.Mesh(geo, mat); scene.add(mesh); return mesh;
     }
 
-    // UPDATED PASSWORD LOGIC
     window.checkAdminLogin = () => { 
         const pass = document.getElementById('admin-pass').value;
-        if (pass === '1FOREST1') {
+        if (pass === '1FOREST1' || pass === 'Caleb1') {
             document.getElementById('admin-login').style.display='none'; 
             document.getElementById('admin-panel').style.display='block'; 
-            document.getElementById('panel-title').innerText = "Admin Panel";
-            window.sessionRole='admin'; 
-            socket.emit('setRole','admin');
+            window.sessionRole = pass === '1FOREST1' ? 'admin' : 'owner'; 
+            document.getElementById('panel-title').innerText = window.sessionRole === 'owner' ? "Owner Panel" : "Admin Panel";
+            socket.emit('setRole', window.sessionRole);
             document.getElementById('admin-pass').value = ""; 
-        } else if (pass === 'Caleb1') {
-            document.getElementById('admin-login').style.display='none'; 
-            document.getElementById('admin-panel').style.display='block'; 
-            document.getElementById('panel-title').innerText = "Owner Panel";
-            window.sessionRole='owner'; 
-            socket.emit('setRole','owner');
-            document.getElementById('admin-pass').value = ""; 
-        } else {
-            alert("Incorrect Password!");
-        }
+        } else { alert("Incorrect Password!"); }
     };
     
     window.closeAdminLogin = () => { document.getElementById('admin-login').style.display='none'; document.body.requestPointerLock(); };
-    window.sendAdminAction = (action) => { socket.emit('adminCommand', { action: action, targetId: document.getElementById('player-list').value }); };
-    window.givePower = () => { socket.emit('adminCommand', { action: 'givePower', targetId: document.getElementById('player-list').value, value: document.getElementById('power-list').value }); };
+    
+    // UI TAB SWITCHER
+    window.switchTab = (tabId) => {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tabId).classList.add('active');
+        document.getElementById('btn-tab-' + tabId).classList.add('active');
+    };
+
+    // UPDATED ADMIN ACTION COMMAND
+    window.sendAdminAction = (action, targetId) => { socket.emit('adminCommand', { action: action, targetId: targetId }); };
+    window.givePower = () => { socket.emit('adminCommand', { action: 'givePower', targetId: document.getElementById('give-player-list').value, value: document.getElementById('power-list').value }); };
 
     socket.on('death', () => { alert("You Died! Respawning..."); });
 
     const tempV = new THREE.Vector3(); 
-
     socket.on('gameState', (state) => {
       if (!isGameStarted) return;
       const now = Date.now();
       
       const overlay = document.getElementById('flash-overlay');
-      overlay.style.opacity = (state.slowMo && state.slowMo.active && state.slowMo.owner !== myId) ? '1' : '0';
+      overlay.style.opacity = (state.slowMo && state.slowMo.active && state.slowMo.owner !== window.myId) ? '1' : '0';
 
-      const compass = document.getElementById('compass-container');
-      compass.innerHTML = ''; 
+      const compass = document.getElementById('compass-container'); compass.innerHTML = ''; 
 
-      const playerDropdown = document.getElementById('player-list');
+      // Update both dropdowns
       if (document.getElementById('admin-panel').style.display === 'block') {
-          const currentSelection = playerDropdown.value;
-          playerDropdown.innerHTML = '';
+          const giveSelect = document.getElementById('give-player-list');
+          const serverSelect = document.getElementById('server-player-list');
+          const currentGive = giveSelect.value; const currentServer = serverSelect.value;
+          
+          giveSelect.innerHTML = ''; serverSelect.innerHTML = '';
           for (const id in state.players) {
-              const opt = document.createElement('option');
-              opt.value = id; opt.innerText = state.players[id].name + (id === myId ? " (You)" : "");
-              playerDropdown.appendChild(opt);
+              const opt1 = document.createElement('option'); const opt2 = document.createElement('option');
+              opt1.value = id; opt2.value = id; 
+              opt1.innerText = state.players[id].name + (id === window.myId ? " (You)" : "");
+              opt2.innerText = opt1.innerText;
+              giveSelect.appendChild(opt1); serverSelect.appendChild(opt2);
           }
-          if (state.players[currentSelection]) playerDropdown.value = currentSelection;
+          if (state.players[currentGive]) giveSelect.value = currentGive;
+          if (state.players[currentServer]) serverSelect.value = currentServer;
       }
 
       for (const id in state.players) {
         const p = state.players[id];
-        
-        if (id === myId) {
+        if (id === window.myId) {
             camera.position.set(p.x, p.y + 1.6, p.z);
             camera.rotation.order = "YXZ"; camera.rotation.set(p.pitch, p.yaw, 0);
             document.getElementById('hp-bar').style.width = (p.hp / 100 * 100) + '%';
             
             if (myElement !== p.element) {
-                myElement = p.element;
-                const elInfo = ELEMENTS_UI[p.element];
+                myElement = p.element; const elInfo = ELEMENTS_UI[p.element];
                 document.getElementById('el-name').innerText = p.element;
                 document.getElementById('el-name').style.color = '#' + (elInfo.color).toString(16);
                 for(let i=0; i<4; i++) document.getElementById(`move${i}-name`).innerText = elInfo.moves[i].name;
             }
-
             for(let i=0; i<4; i++) {
                 const max = ELEMENTS_UI[p.element].moves[i].maxCharges || 1;
-                const cdMax = ELEMENTS_UI[p.element].moves[i].cd || 1000;
-                
                 document.getElementById(`ch${i}`).innerText = max > 1 ? `[${p.charges[i]}]` : "";
-                
-                if (p.charges[i] < max) {
-                    const cdEnd = p.rechargeTimers[i];
-                    const pct = cdEnd > now ? ((cdEnd - now) / cdMax) * 100 : 0;
-                    document.getElementById(`cd${i}`).style.height = pct + '%';
-                } else {
-                    document.getElementById(`cd${i}`).style.height = '0%';
-                }
+                if (p.charges[i] < max) document.getElementById(`cd${i}`).style.height = (((p.rechargeTimers[i] - now) / (ELEMENTS_UI[p.element].moves[i].cd || 1000)) * 100) + '%';
+                else document.getElementById(`cd${i}`).style.height = '0%';
             }
         } else {
             if (!playerMeshes[id]) {
-                const group = new THREE.Group();
-                const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+                const group = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
                 const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), mat); body.position.y = 0.6;
                 const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat); head.position.y = 1.5;
                 group.add(body, head); scene.add(group); playerMeshes[id] = group;
                 
-                const tag = document.createElement('div');
-                tag.className = 'nametag';
-                tag.innerText = p.name;
-                document.getElementById('nametags-container').appendChild(tag);
-                nametagElements[id] = tag;
+                const tag = document.createElement('div'); tag.className = 'nametag'; tag.innerText = p.name;
+                document.getElementById('nametags-container').appendChild(tag); nametagElements[id] = tag;
             }
-            playerMeshes[id].position.set(p.x, p.y, p.z);
-            playerMeshes[id].rotation.y = p.yaw; 
+            playerMeshes[id].position.set(p.x, p.y, p.z); playerMeshes[id].rotation.y = p.yaw; 
 
-            tempV.set(p.x, p.y + 2.2, p.z); 
-            tempV.project(camera);
+            tempV.set(p.x, p.y + 2.2, p.z); tempV.project(camera);
             if (tempV.z < 1) { 
-                const x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
-                const y = (-(tempV.y * 0.5) + 0.5) * window.innerHeight;
                 nametagElements[id].style.display = 'block';
-                nametagElements[id].style.left = `${x}px`;
-                nametagElements[id].style.top = `${y}px`;
-            } else {
-                nametagElements[id].style.display = 'none';
-            }
-
-            const dx = p.x - state.players[myId].x;
-            const dz = p.z - state.players[myId].z;
-            const angleToTarget = Math.atan2(dx, -dz); 
-            let relAngle = angleToTarget - state.players[myId].yaw;
-            
-            relAngle = Math.atan2(Math.sin(relAngle), Math.cos(relAngle));
-            
-            if (Math.abs(relAngle) < Math.PI / 2) {
-                const dot = document.createElement('div');
-                dot.className = 'compass-dot';
-                const nameLabel = document.createElement('div');
-                nameLabel.className = 'compass-name';
-                nameLabel.innerText = p.name;
-                
-                const pct = (relAngle / (Math.PI / 2)) * 50 + 50; 
-                dot.style.left = `${pct}%`;
-                nameLabel.style.left = `${pct}%`;
-                
-                compass.appendChild(dot);
-                compass.appendChild(nameLabel);
-            }
+                nametagElements[id].style.left = `${(tempV.x * 0.5 + 0.5) * window.innerWidth}px`;
+                nametagElements[id].style.top = `${(-(tempV.y * 0.5) + 0.5) * window.innerHeight}px`;
+            } else { nametagElements[id].style.display = 'none'; }
         }
       }
 
       for (const id in playerMeshes) { 
-          if (!state.players[id]) { 
-              scene.remove(playerMeshes[id]); delete playerMeshes[id]; 
-              if (nametagElements[id]) { nametagElements[id].remove(); delete nametagElements[id]; }
-          } 
+          if (!state.players[id]) { scene.remove(playerMeshes[id]); delete playerMeshes[id]; if (nametagElements[id]) { nametagElements[id].remove(); delete nametagElements[id]; } } 
       }
 
       const activeProjIds = new Set(state.projectiles.map(pr => pr.id));
@@ -422,13 +382,14 @@
           if (!projectileMeshes[pr.id]) projectileMeshes[pr.id] = createProjectileMesh(pr);
           projectileMeshes[pr.id].position.set(pr.x, pr.y, pr.z);
           
-          // Make those wild fire shapes spin!
           if (pr.shape === 'icosahedron' || pr.shape === 'octahedron' || pr.shape === 'tetrahedron' || pr.shape === 'torusknot') {
-              projectileMeshes[pr.id].rotation.x += 0.1;
-              projectileMeshes[pr.id].rotation.y += 0.1;
+              projectileMeshes[pr.id].rotation.x += 0.1; projectileMeshes[pr.id].rotation.y += 0.1;
           }
 
-          if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
+          // Wall specific logic to align correctly and lock rotation
+          if (pr.shape === 'wall') {
+              if (pr.life === 300) { projectileMeshes[pr.id].lookAt(pr.x - Math.cos(state.players[pr.ownerId].yaw), pr.y, pr.z + Math.sin(state.players[pr.ownerId].yaw)); }
+          } else if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
               if (pr.shape !== 'icosahedron' && pr.shape !== 'octahedron' && pr.shape !== 'tetrahedron' && pr.shape !== 'torusknot') {
                   projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
               }
