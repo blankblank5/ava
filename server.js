@@ -111,7 +111,7 @@ io.on('connection', (socket) => {
         const dir = getDir(p.yaw, p.pitch);
         
         if (move.type === 'flash') {
-            slowMo.active = true; slowMo.owner = socket.id; slowMo.expires = now + 8000; // Increased duration
+            slowMo.active = true; slowMo.owner = socket.id; slowMo.expires = now + 8000; 
             io.emit('chatMessage', { name: "SYSTEM", text: `${p.name} used Flash! Time is slowing down...` });
             return;
         }
@@ -140,7 +140,7 @@ io.on('connection', (socket) => {
                 y: p.y + 2,
                 z: p.z + (dir.z * dist),
                 vx: 0, vy: 0, vz: 0, gravity: 0,
-                yaw: p.yaw, // Stores exact placement rotation
+                yaw: p.yaw, 
                 life: 400, dmg: 0, shape: 'wall', color: elemStats.color, size: 1.0, isSolid: true, hp: 10
             });
             return;
@@ -171,7 +171,6 @@ io.on('connection', (socket) => {
         if (!p || (p.role !== "admin" && p.role !== "owner")) return;
         const target = players[data.targetId];
         
-        // --- NEW NUKE LOGIC ---
         if (data.action === 'nuke') { 
             if (p.role === "owner") {
                 io.emit('serverNuked', { by: p.name });
@@ -241,7 +240,6 @@ setInterval(() => {
 
         if (p.isFrozen) continue;
 
-        // Owner immunity to slowmo
         let timeScale = 1.0;
         if (slowMo.active && id !== slowMo.owner && p.role !== 'owner') {
             timeScale = 0.2; 
@@ -269,20 +267,18 @@ setInterval(() => {
         p.z += p.vz * DELTA * 3 * timeScale;
 
         for (const pr of projectiles) {
-            // EXACT VISUAL HITBOX FOR EARTH WALL
             if (pr.isSolid && pr.shape === 'wall') {
                 const dx = p.x - pr.x; 
                 const dz = p.z - pr.z;
                 
-                // Convert player position to wall's local space
                 const cos = Math.cos(pr.yaw);
                 const sin = Math.sin(pr.yaw);
-                let localX = dx * cos + dz * sin;
-                let localZ = -dx * sin + dz * cos;
+                
+                // CORRECTED MATRIX MATH TO MATCH GAME DIRECTON AXES
+                let localX = dx * cos - dz * sin;
+                let localZ = -dx * sin - dz * cos;
 
-                // Wall is 6 wide (localX: ±3.0 + 0.2 buffer) and 1 deep (localZ: ±0.5 + 0.5 buffer)
                 if (Math.abs(localX) < 3.2 && Math.abs(localZ) < 1.0 && p.y < pr.y + 4) {
-                    // Push player out of the shortest side
                     let penX = 3.2 - Math.abs(localX);
                     let penZ = 1.0 - Math.abs(localZ);
                     
@@ -292,9 +288,9 @@ setInterval(() => {
                         localZ = localZ > 0 ? 1.0 : -1.0;
                     }
 
-                    // Convert back to global space
+                    // CORRECTED CONVERSION BACK TO GLOBAL SPACE
                     const newDx = localX * cos - localZ * sin;
-                    const newDz = localX * sin + localZ * cos;
+                    const newDz = -localX * sin - localZ * cos;
                     
                     p.x = pr.x + newDx;
                     p.z = pr.z + newDz;
@@ -329,11 +325,10 @@ setInterval(() => {
         const pr = projectiles[i];
         let pTimeScale = 1.0;
         
-        // SLOW DOWN PROJECTILES MORE DURING FLASH
         if (slowMo.active) {
             const prOwner = players[pr.ownerId];
             if (pr.ownerId !== slowMo.owner && (!prOwner || prOwner.role !== 'owner')) {
-                pTimeScale = 0.05; // Extremely slow for non-owners
+                pTimeScale = 0.05; 
             }
         }
 
@@ -342,34 +337,30 @@ setInterval(() => {
 
         let destroyed = false;
         
-        // --- NEW WALL HITBOX LOGIC ---
         if (!pr.isSolid && pr.dmg > 0) {
             for (let j = projectiles.length - 1; j >= 0; j--) {
                 const wall = projectiles[j];
-                // Only check collisions on enemy walls
                 if (wall.isSolid && pr.ownerId !== wall.ownerId && wall.shape === 'wall') {
                     const dx = pr.x - wall.x;
                     const dy = pr.y - wall.y; 
                     const dz = pr.z - wall.z;
                     
-                    // 1. Convert the projectile's position into the wall's exact rotated angle
                     const cos = Math.cos(wall.yaw);
                     const sin = Math.sin(wall.yaw);
-                    const localX = dx * cos + dz * sin;
-                    const localZ = -dx * sin + dz * cos;
+                    
+                    // CORRECTED MATRIX MATH FOR SPELLS HITTING THE WALL
+                    const localX = dx * cos - dz * sin;
+                    const localZ = -dx * sin - dz * cos;
 
-                    // 2. Check against the wall's EXACT dimensions (Width: 6, Height: 4, Depth: 1)
-                    // We add a tiny 0.2 buffer so fast-moving spells don't clip through between server ticks
                     if (Math.abs(localX) <= 3.2 && Math.abs(localZ) <= 0.7 && Math.abs(dy) <= 2.2) { 
                         wall.hp -= 1;
                         if (wall.hp <= 0) wall.life = 0;
                         destroyed = true; 
-                        break; // Stop checking other walls
+                        break; 
                     }
                 }
             }
         }
-        // --- END OF WALL HITBOX LOGIC ---
 
         if (!destroyed && !pr.isSolid) {
             for (const pid in players) {
