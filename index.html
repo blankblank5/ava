@@ -1,255 +1,447 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Elemental Arena - Owner Edition</title>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <style>
-    body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: sans-serif; }
-    #start-screen { position: absolute; inset: 0; background: #111; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
-    .el-btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1; }
-    .el-btn:hover { transform: scale(1.05); }
-    
-    #admin-login { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9); z-index:200; flex-direction:column; align-items:center; justify-content:center; color:white; }
-    #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.9); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:300px; max-height: 80vh; overflow-y: auto; }
-    .admin-btn { width: 100%; margin-bottom: 5px; padding: 8px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; }
-    
-    .tab-container { display: flex; margin-bottom: 15px; border-bottom: 2px solid #444; }
-    .tab-btn { flex: 1; padding: 8px; background: #222; color: white; border: none; cursor: pointer; font-weight: bold; font-size: 12px; }
-    .tab-btn.active { background: cyan; color: black; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elemental Arena: The Network War</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root {
+            --neon-cyan: #00f2ff;
+            --neon-red: #ff0044;
+            --glass: rgba(0, 0, 0, 0.85);
+        }
 
-    #death-screen { display: none; position: absolute; inset: 0; background: rgba(150, 0, 0, 0.9); z-index: 300; flex-direction: column; align-items: center; justify-content: center; color: white; pointer-events: all; }
-    #game-ui { position: absolute; bottom: 20px; left: 20px; color: white; text-shadow: 2px 2px 0 #000; pointer-events: none; display: none; }
-    #moves-container { position: absolute; bottom: 20px; right: 20px; display: none; gap: 10px; }
-    .move-slot { background: rgba(0,0,0,0.6); border: 2px solid #555; width: 80px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
-    .cooldown-overlay { position: absolute; bottom: 0; width: 100%; background: rgba(255,0,0,0.5); z-index: 1; height: 0%; }
-    #chat-wrapper { position: absolute; top: 10px; left: 10px; width: 320px; height: 250px; background: rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 100; border: 1px solid #444; }
-    #chat-messages { flex: 1; overflow-y: auto; padding: 10px; color: white; font-size: 14px; }
-  </style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        
+        /* --- SCREENS --- */
+        #start-screen {
+            position: absolute; inset: 0; 
+            background: radial-gradient(circle at center, #111 0%, #000 100%);
+            z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;
+        }
+
+        #death-screen {
+            display: none; position: absolute; inset: 0;
+            background: rgba(139, 0, 0, 0.9); z-index: 2000;
+            flex-direction: column; align-items: center; justify-content: center; color: white;
+            text-align: center; backdrop-filter: blur(10px);
+        }
+        #death-screen h1 { font-size: 100px; margin: 0; text-shadow: 0 0 20px #000; letter-spacing: 10px; }
+
+        #admin-login-overlay {
+            display: none; position: absolute; inset: 0;
+            background: rgba(0,0,0,0.95); z-index: 3000;
+            flex-direction: column; align-items: center; justify-content: center; color: white;
+        }
+
+        /* --- UI ELEMENTS --- */
+        .el-btn {
+            padding: 20px 40px; font-size: 20px; font-weight: 900; cursor: pointer;
+            border: none; border-radius: 8px; transition: all 0.3s;
+            text-transform: uppercase; letter-spacing: 2px; box-shadow: 0 5px #000;
+        }
+        .el-btn:active { transform: translateY(4px); box-shadow: 0 0 #000; }
+
+        #game-hud {
+            position: absolute; bottom: 30px; left: 30px; color: white;
+            pointer-events: none; display: none; z-index: 100;
+        }
+        .hp-container {
+            width: 300px; height: 25px; background: #200; border: 3px solid #000;
+            position: relative; overflow: hidden; border-radius: 5px;
+        }
+        #hp-bar {
+            width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #990000);
+            transition: width 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        #move-bar {
+            position: absolute; bottom: 30px; right: 30px; display: none; gap: 15px; z-index: 100;
+        }
+        .move-slot {
+            width: 90px; height: 90px; background: var(--glass); border: 2px solid #444;
+            border-radius: 12px; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; position: relative; color: white;
+        }
+        .move-key { position: absolute; top: 5px; left: 8px; font-size: 12px; color: var(--neon-cyan); font-weight: bold; }
+        .cooldown-overlay {
+            position: absolute; bottom: 0; width: 100%; background: rgba(0, 242, 255, 0.3);
+            height: 0%; transition: height 0.1s linear; border-radius: 0 0 10px 10px;
+        }
+
+        /* --- ADMIN PANEL --- */
+        #admin-panel {
+            display: none; position: absolute; top: 20px; right: 20px;
+            width: 350px; background: var(--glass); border: 2px solid var(--neon-cyan);
+            border-radius: 15px; padding: 20px; color: white; z-index: 1500;
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
+        }
+        .tab-nav { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .tab-btn {
+            flex: 1; padding: 10px; background: #111; color: #666; border: none;
+            cursor: pointer; font-weight: bold; border-radius: 5px;
+        }
+        .tab-btn.active { background: var(--neon-cyan); color: #000; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .admin-action-btn {
+            width: 100%; padding: 12px; margin-bottom: 8px; border: none; border-radius: 5px;
+            font-weight: bold; cursor: pointer; transition: opacity 0.2s;
+        }
+        .owner-section {
+            border-top: 2px dashed var(--neon-red); margin-top: 20px; padding-top: 15px;
+            display: none; /* Controlled by JS */
+        }
+
+        /* --- CHAT --- */
+        #chat-box {
+            position: absolute; top: 20px; left: 20px; width: 350px; height: 300px;
+            background: rgba(0,0,0,0.6); display: none; flex-direction: column;
+            border-radius: 10px; border: 1px solid #333; overflow: hidden;
+        }
+        #chat-messages { flex: 1; overflow-y: auto; padding: 15px; color: #ddd; font-size: 14px; }
+        #chat-input {
+            background: #000; border: none; border-top: 1px solid #333; color: white;
+            padding: 15px; outline: none;
+        }
+
+        input[type="text"], input[type="password"], select {
+            width: 100%; padding: 12px; margin-bottom: 10px; background: #111;
+            border: 1px solid #444; color: white; border-radius: 5px; box-sizing: border-box;
+        }
+    </style>
 </head>
 <body>
 
-  <div id="death-screen">
-      <h1 style="font-size: 80px; margin: 0;">YOU DIED</h1>
-      <h2 style="font-size: 30px;">Respawning in <span id="respawn-timer" style="color: #ffcc00;">5</span>...</h2>
-  </div>
-
-  <div id="start-screen">
-    <h1 style="font-size: 40px;">ELEMENTAL ARENA</h1>
-    <input type="text" id="player-name-input" placeholder="Enter Name..." maxlength="15" style="padding: 10px; margin-bottom: 20px; text-align: center;">
-    <div style="display: flex; gap: 10px;">
-      <button class="el-btn" style="background:white;" onclick="initGame('AIR')">AIR</button>
-      <button class="el-btn" style="background:#8b4513; color:white;" onclick="initGame('EARTH')">EARTH</button>
-      <button class="el-btn" style="background:#ff4500; color:white;" onclick="initGame('FIRE')">FIRE</button>
-      <button class="el-btn" style="background:#0088ff; color:white;" onclick="initGame('WATER')">WATER</button>
-    </div>
-  </div>
-
-  <div id="admin-login">
-    <h2>Access Restricted</h2>
-    <input type="password" id="admin-pass" placeholder="Password..." style="padding:10px;">
-    <button onclick="checkAdminLogin()" style="margin-top:10px; padding:10px;">Login</button>
-  </div>
-  
-  <div id="admin-panel">
-    <h3 id="panel-title" style="color:cyan; text-align:center;">Panel</h3>
-    <div class="tab-container">
-        <button class="tab-btn active" onclick="switchTab('self')">Self</button>
-        <button class="tab-btn" onclick="switchTab('give')">Give</button>
-        <button class="tab-btn" onclick="switchTab('server')">Server</button>
-    </div>
-
-    <div id="tab-self" class="tab-content active">
-        <button class="admin-btn" onclick="sendAdminAction('godmode', window.myId)" style="background:#8a0;">Godmode</button>
-        <button class="admin-btn" onclick="sendAdminAction('nocooldown', window.myId)" style="background:#b80;">No CD</button>
-    </div>
-
-    <div id="tab-give" class="tab-content">
-        <select id="give-player-list" style="width:100%; margin-bottom:10px;"></select>
-        <button class="admin-btn" onclick="sendAdminAction('heal', document.getElementById('give-player-list').value)">Heal</button>
-        <select id="power-list" style="width:100%; margin-top:10px;">
-            <option value="AIR">Air</option><option value="EARTH">Earth</option>
-            <option value="FIRE">Fire</option><option value="WATER">Water</option>
-            <option value="LIGHTNING">Lightning</option>
-        </select>
-        <button class="admin-btn" onclick="socket.emit('adminCommand', {action:'givePower', targetId:document.getElementById('give-player-list').value, value:document.getElementById('power-list').value})">Give Power</button>
-    </div>
-
-    <div id="tab-server" class="tab-content">
-        <select id="server-player-list" style="width:100%; margin-bottom:10px;"></select>
-        <button class="admin-btn" onclick="sendAdminAction('jail', document.getElementById('server-player-list').value)">Jail</button>
-        <button class="admin-btn" onclick="sendAdminAction('mute', document.getElementById('server-player-list').value)">Mute</button>
-        <button class="admin-btn" onclick="sendAdminAction('kick', document.getElementById('server-player-list').value)" style="background:darkred;">Kick</button>
+    <div id="start-screen">
+        <h1 style="font-size: 70px; margin-bottom: 0; text-shadow: 0 0 20px var(--neon-cyan);">ARENA</h1>
+        <p style="color: var(--neon-cyan); letter-spacing: 5px; margin-bottom: 40px;">BATTLE FOR THE NETWORK</p>
         
-        <div id="owner-only-tools" style="display:none; border-top: 2px solid red; margin-top: 15px; padding-top: 10px;">
-            <h4 style="color:red; margin:0;">Owner Tools</h4>
-            <button class="admin-btn" onclick="sendAdminAction('ban', document.getElementById('server-player-list').value)" style="background:black; color:red; border:1px solid red;">BAN BROWSER</button>
-            <hr>
-            <h4 style="color:red; margin:5px 0;">Safe Box (Bans)</h4>
-            <select id="banned-list" style="width:100%; margin-bottom:5px;"></select>
-            <button class="admin-btn" onclick="unbanPlayer()" style="background:green;">Unban Selected</button>
-            <button class="admin-btn" onclick="sendAdminAction('nuke', null)" style="background:darkred; margin-top:10px;">NUKE SERVER</button>
+        <input type="text" id="username" placeholder="NAME YOUR HERO..." maxlength="15" style="width: 350px; text-align: center; font-size: 18px;">
+        
+        <div style="display: flex; gap: 15px;">
+            <button class="el-btn" style="background: #eee; color: #000;" onclick="join('AIR')">Air</button>
+            <button class="el-btn" style="background: #8b4513; color: #fff;" onclick="join('EARTH')">Earth</button>
+            <button class="el-btn" style="background: #ff4500; color: #fff;" onclick="join('FIRE')">Fire</button>
+            <button class="el-btn" style="background: #0088ff; color: #fff;" onclick="join('WATER')">Water</button>
         </div>
     </div>
-  </div>
 
-  <div id="game-ui">
-    <h2 id="display-name">Player</h2>
-    <div style="width: 200px; height: 10px; background: #400; border: 1px solid #000;">
-        <div id="hp-bar" style="width: 100%; height: 100%; background: #f22;"></div>
+    <div id="death-screen">
+        <h1>YOU DIED</h1>
+        <h2 style="font-size: 40px; margin: 20px 0;">RESPAWNING IN <span id="respawn-timer" style="color: var(--neon-cyan);">5</span></h2>
+        <p style="font-style: italic; opacity: 0.7;">Prepare for your next strike...</p>
     </div>
-    <h3 id="el-name">AIR</h3>
-  </div>
 
-  <div id="moves-container">
-    <div class="move-slot"><div id="move0-name">M1</div><div class="cooldown-overlay" id="cd0"></div></div>
-    <div class="move-slot"><div id="move1-name">Q</div><div class="cooldown-overlay" id="cd1"></div></div>
-    <div class="move-slot"><div id="move2-name">E</div><div class="cooldown-overlay" id="cd2"></div></div>
-    <div class="move-slot"><div id="move3-name">R</div><div class="cooldown-overlay" id="cd3"></div></div>
-  </div>
+    <div id="admin-login-overlay">
+        <h2 style="letter-spacing: 10px; color: var(--neon-red);">TERMINAL ACCESS</h2>
+        <input type="password" id="admin-pass" placeholder="ENTER ACCESS KEY..." style="width: 300px; text-align: center;">
+        <div style="display: flex; gap: 10px;">
+            <button class="el-btn" style="background: var(--neon-red); font-size: 14px; padding: 10px 30px;" onclick="tryAdmin()">AUTHORIZE</button>
+            <button class="el-btn" style="background: #333; font-size: 14px; padding: 10px 30px;" onclick="closeAdminLogin()">ABORT</button>
+        </div>
+    </div>
 
-  <div id="chat-wrapper">
-    <div id="chat-messages"></div>
-    <input type="text" id="chat-input" placeholder="Press Enter to Chat...">
-  </div>
-
-  <script type="module">
-    import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
-    const socket = io('https://your-render-url.onrender.com'); // REPLACE WITH YOUR URL
-
-    // --- DEVICE ID & BAN CHECK ---
-    let myDeviceId = localStorage.getItem('arena_device_id');
-    if (!myDeviceId) {
-        myDeviceId = 'dev_' + Math.floor(Math.random() * 1000000000);
-        localStorage.setItem('arena_device_id', myDeviceId);
-    }
-
-    let isGameStarted = false;
-    window.myId = null;
-    window.sessionRole = "player";
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x33aa33 }));
-    floor.rotation.x = -Math.PI / 2; scene.add(floor);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-
-    window.initGame = (el) => {
-        const name = document.getElementById('player-name-input').value || "Player";
-        socket.emit('joinGame', { name, element: el, deviceId: myDeviceId });
-    };
-
-    socket.on('joinSuccess', (data) => {
-        window.myId = data.id;
-        isGameStarted = true;
-        document.getElementById('start-screen').style.display = 'none';
-        document.getElementById('game-ui').style.display = 'block';
-        document.getElementById('moves-container').style.display = 'flex';
-        document.getElementById('chat-wrapper').style.display = 'flex';
-        document.body.requestPointerLock();
-    });
-
-    socket.on('death', () => {
-        const screen = document.getElementById('death-screen');
-        const timer = document.getElementById('respawn-timer');
-        document.exitPointerLock();
-        screen.style.display = 'flex';
-        let left = 5;
-        timer.innerText = left;
-        const count = setInterval(() => {
-            left--; timer.innerText = left;
-            if(left <= 0) { clearInterval(count); screen.style.display = 'none'; document.body.requestPointerLock(); }
-        }, 1000);
-    });
-
-    socket.on('serverNuked', () => {
-        document.body.innerHTML = "<h1 style='color:red; text-align:center; margin-top:20%;'>DISCONNECTED: SERVER CLOSED OR BANNED</h1>";
-    });
-
-    // ADMIN LOGIC
-    window.checkAdminLogin = () => {
-        const pass = document.getElementById('admin-pass').value;
-        if(pass === '1FOREST1' || pass === 'Caleb1') {
-            window.sessionRole = pass === 'Caleb1' ? 'owner' : 'admin';
-            document.getElementById('admin-login').style.display = 'none';
-            document.getElementById('admin-panel').style.display = 'block';
-            document.getElementById('panel-title').innerText = window.sessionRole.toUpperCase() + " PANEL";
-            if(window.sessionRole === 'owner') document.getElementById('owner-only-tools').style.display = 'block';
-            socket.emit('setRole', window.sessionRole);
-        } else { alert("Wrong Password!"); }
-    };
-
-    window.sendAdminAction = (action, targetId) => {
-        let val = null;
-        if(action === 'ban') {
-            val = prompt("Who is this? (Real Name for Safe Box):");
-            if(!val) return;
-        }
-        socket.emit('adminCommand', { action, targetId, value: val });
-    };
-
-    window.unbanPlayer = () => {
-        const devId = document.getElementById('banned-list').value;
-        if(devId) socket.emit('adminCommand', { action: 'unban', deviceId: devId });
-    };
-
-    window.switchTab = (id) => {
-        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-        document.getElementById('tab-'+id).classList.add('active');
-    };
-
-    // INPUTS & RENDERING (Kept exactly as before)
-    const inputs = { forward: false, backward: false, left: false, right: false, yaw: 0, pitch: 0 };
-    document.addEventListener('mousemove', (e) => {
-        if(document.pointerLockElement === document.body) {
-            inputs.yaw -= e.movementX * 0.002; inputs.pitch -= e.movementY * 0.002;
-        }
-    });
-
-    socket.on('gameState', (state) => {
-        if(!isGameStarted) return;
-        const p = state.players[window.myId];
-        if(p) {
-            camera.position.set(p.x, p.y + 1.6, p.z);
-            camera.rotation.set(p.pitch, p.yaw, 0, 'YXZ');
-            document.getElementById('hp-bar').style.width = (p.hp / p.maxHp * 100) + "%";
-            document.getElementById('el-name').innerText = p.element;
-        }
+    <div id="admin-panel">
+        <h3 id="panel-header" style="text-align: center; margin-top: 0; color: var(--neon-cyan);">ADMIN TERMINAL</h3>
         
-        // Populate Admin Lists
-        if(document.getElementById('admin-panel').style.display === 'block') {
-            const list1 = document.getElementById('give-player-list');
-            const list2 = document.getElementById('server-player-list');
-            const banList = document.getElementById('banned-list');
-            
-            const prev1 = list1.value; const prev2 = list2.value;
-            list1.innerHTML = ""; list2.innerHTML = "";
-            for(let id in state.players) {
-                const opt = `<option value="${id}">${state.players[id].name}</option>`;
-                list1.innerHTML += opt; list2.innerHTML += opt;
-            }
-            list1.value = prev1; list2.value = prev2;
+        <div class="tab-nav">
+            <button class="tab-btn active" id="tab-self-btn" onclick="setTab('self')">Self</button>
+            <button class="tab-btn" id="tab-give-btn" onclick="setTab('give')">Users</button>
+            <button class="tab-btn" id="tab-serv-btn" onclick="setTab('serv')">Server</button>
+        </div>
 
-            if(window.sessionRole === 'owner' && state.bannedPlayers) {
-                banList.innerHTML = "";
-                for(let devId in state.bannedPlayers) {
-                    const b = state.bannedPlayers[devId];
-                    banList.innerHTML += `<option value="${devId}">${b.realName} (was ${b.lastNick})</option>`;
+        <div id="tab-self" class="tab-content active">
+            <button class="admin-action-btn" style="background: #2a2;" onclick="socket.emit('adminCommand', {action: 'godmode', targetId: myId})">Toggle Godmode</button>
+            <button class="admin-action-btn" style="background: #a82;" onclick="socket.emit('adminCommand', {action: 'nocooldown', targetId: myId})">Toggle No-CD</button>
+        </div>
+
+        <div id="tab-give" class="tab-content">
+            <label>Target User:</label>
+            <select id="user-select-give"></select>
+            <button class="admin-action-btn" style="background: #228;" onclick="socket.emit('adminCommand', {action: 'heal', targetId: document.getElementById('user-select-give').value})">Full Heal</button>
+            <hr style="border-color: #333;">
+            <label>Grant Element:</label>
+            <select id="power-select">
+                <option value="AIR">Air</option><option value="EARTH">Earth</option>
+                <option value="FIRE">Fire</option><option value="WATER">Water</option>
+                <option value="LIGHTNING">Lightning</option>
+            </select>
+            <button class="admin-action-btn" style="background: #555;" onclick="socket.emit('adminCommand', {action: 'givePower', targetId: document.getElementById('user-select-give').value, value: document.getElementById('power-select').value})">Update Element</button>
+        </div>
+
+        <div id="tab-serv" class="tab-content">
+            <label>Select User:</label>
+            <select id="user-select-serv"></select>
+            <div style="display: flex; gap: 5px;">
+                <button class="admin-action-btn" style="background: #444;" onclick="socket.emit('adminCommand', {action: 'jail', targetId: document.getElementById('user-select-serv').value})">Jail</button>
+                <button class="admin-action-btn" style="background: #660;" onclick="socket.emit('adminCommand', {action: 'mute', targetId: document.getElementById('user-select-serv').value})">Mute</button>
+            </div>
+            <button class="admin-action-btn" style="background: #b00;" onclick="socket.emit('adminCommand', {action: 'kick', targetId: document.getElementById('user-select-serv').value})">Kick User</button>
+            
+            <div id="owner-box" class="owner-section">
+                <h4 style="color: var(--neon-red); margin: 0 0 10px 0;">OWNER AUTHORITY</h4>
+                <button class="admin-action-btn" style="background: #000; border: 1px solid var(--neon-red); color: var(--neon-red);" onclick="ownerBan()">BAN HARDWARE</button>
+                
+                <h5 style="margin: 15px 0 5px 0; color: #888;">SAFE BOX (Ban List)</h5>
+                <select id="safe-box-list"></select>
+                <button class="admin-action-btn" style="background: #060;" onclick="ownerUnban()">Unban User</button>
+                
+                <button class="admin-action-btn" style="background: var(--neon-red); color: #000; margin-top: 20px;" onclick="socket.emit('adminCommand', {action: 'nuke'})">NUKE SERVER</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-hud">
+        <h2 id="hud-name" style="margin: 0 0 5px 0;">PLAYER</h2>
+        <div class="hp-container"><div id="hp-bar"></div></div>
+        <h3 id="hud-element" style="margin: 5px 0 0 0; font-style: italic; opacity: 0.8;">ELEMENT</h3>
+    </div>
+
+    <div id="move-bar">
+        <div class="move-slot"><div class="move-key">M1</div><div id="m0-n"></div><div class="cooldown-overlay" id="cd0"></div></div>
+        <div class="move-slot"><div class="move-key">Q</div><div id="m1-n"></div><div class="cooldown-overlay" id="cd1"></div></div>
+        <div class="move-slot"><div class="move-key">E</div><div id="m2-n"></div><div class="cooldown-overlay" id="cd2"></div></div>
+        <div class="move-slot"><div class="move-key">R</div><div id="m3-n"></div><div class="cooldown-overlay" id="cd3"></div></div>
+    </div>
+
+    <div id="chat-box">
+        <div id="chat-messages"></div>
+        <input type="text" id="chat-input" placeholder="Press ENTER to message...">
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
+
+        // --- CORE SETUP ---
+        const socket = io('https://your-render-app.onrender.com'); // UPDATE THIS
+        
+        let deviceId = localStorage.getItem('arena_id');
+        if(!deviceId) {
+            deviceId = 'dev_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('arena_id', deviceId);
+        }
+
+        window.myId = null;
+        let isSpawned = false;
+        let myRole = 'player';
+
+        // --- THREE.JS ENGINE ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505);
+        scene.fog = new THREE.FogExp2(0x050505, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // Environment
+        const floorGeo = new THREE.PlaneGeometry(1000, 1000);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+        scene.add(floor);
+
+        const grid = new THREE.GridHelper(1000, 100, 0x00f2ff, 0x111111);
+        grid.position.y = 0.05; scene.add(grid);
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.2); scene.add(ambient);
+        const sun = new THREE.DirectionalLight(0xffffff, 1); sun.position.set(50, 100, 50); sun.castShadow = true;
+        scene.add(sun);
+
+        // Jail Structure
+        const jailGroup = new THREE.Group();
+        jailGroup.position.set(50, 0, 50);
+        const barGeo = new THREE.CylinderGeometry(0.1, 0.1, 10);
+        const barMat = new THREE.MeshStandardMaterial({ color: 0x333, metalness: 1 });
+        for(let x = -5; x <= 5; x += 2.5) {
+            for(let z of [-5, 5]) {
+                const b = new THREE.Mesh(barGeo, barMat); b.position.set(x, 5, z); jailGroup.add(b);
+            }
+        }
+        for(let z = -5; z <= 5; z += 2.5) {
+            for(let x of [-5, 5]) {
+                const b = new THREE.Mesh(barGeo, barMat); b.position.set(x, 5, z); jailGroup.add(b);
+            }
+        }
+        scene.add(jailGroup);
+
+        // --- GAME LOGIC ---
+        window.join = (element) => {
+            const name = document.getElementById('username').value || "Wanderer";
+            socket.emit('joinGame', { name, element, deviceId });
+        };
+
+        socket.on('joinSuccess', (data) => {
+            window.myId = data.id;
+            isSpawned = true;
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-hud').style.display = 'block';
+            document.getElementById('move-bar').style.display = 'flex';
+            document.getElementById('chat-box').style.display = 'flex';
+            document.body.requestPointerLock();
+        });
+
+        socket.on('death', () => {
+            isSpawned = false;
+            document.exitPointerLock();
+            const screen = document.getElementById('death-screen');
+            const timerText = document.getElementById('respawn-timer');
+            screen.style.display = 'flex';
+            
+            let count = 5;
+            timerText.innerText = count;
+            const interval = setInterval(() => {
+                count--;
+                timerText.innerText = count;
+                if(count <= 0) {
+                    clearInterval(interval);
+                    screen.style.display = 'none';
+                    isSpawned = true;
+                    document.body.requestPointerLock();
+                }
+            }, 1000);
+        });
+
+        socket.on('serverNuked', () => {
+            document.body.innerHTML = `
+                <div style="background:#000; color:red; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    <h1 style="font-size:50px;">CONNECTION TERMINATED</h1>
+                    <p>YOU HAVE BEEN BANNED OR THE SERVER HAS CLOSED.</p>
+                </div>`;
+        });
+
+        // --- ADMIN FUNCTIONS ---
+        window.tryAdmin = () => {
+            const pass = document.getElementById('admin-pass').value;
+            if(pass === '1FOREST1' || pass === 'Caleb1') {
+                myRole = (pass === 'Caleb1') ? 'owner' : 'admin';
+                document.getElementById('admin-login-overlay').style.display = 'none';
+                document.getElementById('admin-panel').style.display = 'block';
+                document.getElementById('panel-header').innerText = myRole.toUpperCase() + " TERMINAL";
+                
+                if(myRole === 'owner') {
+                    document.getElementById('owner-box').style.display = 'block';
+                }
+                socket.emit('setRole', myRole);
+            } else {
+                alert("ACCESS DENIED: INVALID KEY");
+            }
+        };
+
+        window.ownerBan = () => {
+            const targetId = document.getElementById('user-select-serv').value;
+            if(!targetId) return;
+            const realName = prompt("Who is this? (Real Name for Safe Box):");
+            if(realName) {
+                socket.emit('adminCommand', { action: 'ban', targetId, value: realName });
+            }
+        };
+
+        window.ownerUnban = () => {
+            const devId = document.getElementById('safe-box-list').value;
+            if(devId) {
+                socket.emit('adminCommand', { action: 'unban', deviceId: devId });
+            }
+        };
+
+        window.setTab = (id) => {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + id).classList.add('active');
+            document.getElementById('tab-' + id + '-btn').classList.add('active');
+        };
+
+        window.closeAdminLogin = () => {
+            document.getElementById('admin-login-overlay').style.display = 'none';
+            document.body.requestPointerLock();
+        };
+
+        // --- INPUTS ---
+        const inputs = { forward: false, backward: false, left: false, right: false, yaw: 0, pitch: 0 };
+        document.addEventListener('keydown', (e) => {
+            if(!isSpawned || document.activeElement.id === 'chat-input') return;
+            if(e.code === 'KeyW') inputs.forward = true;
+            if(e.code === 'KeyS') inputs.backward = true;
+            if(e.code === 'KeyA') inputs.left = true;
+            if(e.code === 'KeyD') inputs.right = true;
+            if(e.code === 'KeyQ') socket.emit('useMove', 1);
+            if(e.code === 'KeyE') socket.emit('useMove', 2);
+            if(e.code === 'KeyR') socket.emit('useMove', 3);
+            if(e.code === 'KeyM') { document.exitPointerLock(); document.getElementById('admin-login-overlay').style.display = 'flex'; }
+            if(e.code === 'Enter') document.getElementById('chat-input').focus();
+        });
+        document.addEventListener('keyup', (e) => {
+            if(e.code === 'KeyW') inputs.forward = false;
+            if(e.code === 'KeyS') inputs.backward = false;
+            if(e.code === 'KeyA') inputs.left = false;
+            if(e.code === 'KeyD') inputs.right = false;
+        });
+        document.addEventListener('mousemove', (e) => {
+            if(document.pointerLockElement === document.body) {
+                inputs.yaw -= e.movementX * 0.002;
+                inputs.pitch = Math.max(-1.5, Math.min(1.5, inputs.pitch - e.movementY * 0.002));
+            }
+        });
+        document.addEventListener('mousedown', () => {
+            if(isSpawned && document.pointerLockElement === document.body) socket.emit('useMove', 0);
+        });
+
+        // --- GAME STATE ---
+        const players = {};
+        const projectiles = {};
+
+        socket.on('gameState', (state) => {
+            if(!isSpawned) return;
+            
+            // Update HUD
+            const me = state.players[window.myId];
+            if(me) {
+                camera.position.set(me.x, me.y + 1.7, me.z);
+                camera.rotation.set(me.pitch, me.yaw, 0, 'YXZ');
+                document.getElementById('hp-bar').style.width = (me.hp / me.maxHp * 100) + '%';
+                document.getElementById('hud-name').innerText = me.name;
+                document.getElementById('hud-element').innerText = me.element;
+            }
+
+            // Update Admin Lists
+            if(document.getElementById('admin-panel').style.display === 'block') {
+                const gList = document.getElementById('user-select-give');
+                const sList = document.getElementById('user-select-serv');
+                const bList = document.getElementById('safe-box-list');
+                
+                const curG = gList.value; const curS = sList.value;
+                gList.innerHTML = ''; sList.innerHTML = '';
+                for(let id in state.players) {
+                    const opt = `<option value="${id}">${state.players[id].name}</option>`;
+                    gList.innerHTML += opt; sList.innerHTML += opt;
+                }
+                gList.value = curG; sList.value = curS;
+
+                if(myRole === 'owner') {
+                    bList.innerHTML = '';
+                    for(let devId in state.bannedPlayers) {
+                        const b = state.bannedPlayers[devId];
+                        bList.innerHTML += `<option value="${devId}">${b.realName} (as ${b.lastNick})</option>`;
+                    }
                 }
             }
-        }
-    });
+        });
 
-    setInterval(() => { if(isGameStarted) socket.emit('input', inputs); }, 1000/30);
-    function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); } animate();
-  </script>
+        setInterval(() => { if(isSpawned) socket.emit('input', inputs); }, 1000/30);
+        function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
 </body>
 </html>
