@@ -13,29 +13,37 @@ let projCounter = 0;
 let slowMo = { active: false, owner: null, expires: 0 };
 
 const ELEMENTS = {
+    // AIR: Speed and timing. Fast cooldowns, multiple charges, low damage per hit.
+    // Strength: mobility, sustained pressure, burst with Hurricane. Weakness: low single-hit dmg, poor vs tanky players.
     AIR: { name: 'AIR', color: 0xffffff, moves: [
-        { dmg: 12, cd: 400, speed: 60, shape: 'sphere', size: 0.2 }, 
-        { dmg: 25, cd: 3000, speed: 45, shape: 'flat', size: 0.2, scale: 3, knockback: 1.5 }, 
-        { dmg: 0, cd: 4000, type: 'dash', maxCharges: 3 }, 
-        { dmg: 6, cd: 8000, speed: 25, shape: 'sphere', count: 20, spread: 1.0, auto: true, size: 0.3, knockback: 1.0 } 
+        { dmg: 10, cd: 350, speed: 65, shape: 'sphere', size: 0.2 },
+        { dmg: 18, cd: 3000, speed: 50, shape: 'flat', size: 0.2, scale: 3, knockback: 1.5 },
+        { dmg: 0, cd: 2500, type: 'dash', maxCharges: 3 },
+        { dmg: 6, cd: 7000, speed: 28, shape: 'sphere', count: 20, spread: 0.7, auto: true, size: 0.3, knockback: 1.0 }
     ]},
+    // EARTH: Slow and reliable. Long cooldowns, strong single hits, limited mobility.
+    // Strength: raw damage, area denial. Weakness: slow projectiles, punished by mobile enemies.
     EARTH: { name: 'EARTH', color: 0x8b4513, moves: [
-        { dmg: 25, cd: 800, speed: 35, grav: 0.8, shape: 'rock', size: 0.3 },
-        { dmg: 15, cd: 4000, speed: 50, grav: 0, shape: 'spike', size: 0.3, rootTime: 2000 },
-        { dmg: 0, cd: 5000, type: 'wall' }, 
-        { dmg: 90, cd: 10000, type: 'meteor', shape: 'rock', size: 1.5, grav: 1.5 }
+        { dmg: 28, cd: 900, speed: 32, grav: 0.9, shape: 'rock', size: 0.3 },
+        { dmg: 25, cd: 4500, type: 'groundSpikes' },
+        { dmg: 0, cd: 5000, type: 'wall' },
+        { dmg: 100, cd: 11000, type: 'meteor', shape: 'rock', size: 1.5, grav: 1.5 }
     ]},
+    // FIRE: High risk, high reward. Strong burst, punishing misses, medium-long cooldowns.
+    // Strength: highest burst potential. Weakness: long downtime on misses, Flamethrower only good up close.
     FIRE: { name: 'FIRE', color: 0xff4500, moves: [
-        { dmg: 15, cd: 400, speed: 55, shape: 'icosahedron', size: 0.2 },
-        { dmg: 40, cd: 3000, speed: 30, shape: 'octahedron', size: 0.5, knockback: 0.5 },
-        { dmg: 5, cd: 4000, speed: 20, shape: 'tetrahedron', count: 15, spread: 1.2, auto: true, size: 0.2 },
-        { dmg: 120, cd: 12000, type: 'meteor', shape: 'torusknot', size: 1.0, grav: 1.0 }
+        { dmg: 15, cd: 450, speed: 55, shape: 'icosahedron', size: 0.2 },
+        { dmg: 50, cd: 4000, speed: 28, shape: 'octahedron', size: 0.5, knockback: 0.5 },
+        { dmg: 8, cd: 4500, speed: 20, shape: 'tetrahedron', count: 15, spread: 1.2, auto: true, size: 0.2 },
+        { dmg: 130, cd: 14000, type: 'meteor', shape: 'icosahedron', size: 1.0, grav: 1.0 }
     ]},
+    // WATER: Consistent and adaptable. Medium damage, medium cooldowns, reliable range control.
+    // Strength: no bad matchups, Tsunami repositions enemies. Weakness: no extreme in any category.
     WATER: { name: 'WATER', color: 0x0088ff, moves: [
-        { dmg: 14, cd: 350, speed: 45, grav: 0.1, shape: 'sphere', size: 0.2 },
-        { dmg: 35, cd: 4000, speed: 40, shape: 'flat', size: 0.2, scale: 5, knockback: 2.5 },
-        { dmg: 25, cd: 3000, speed: 60, shape: 'cylinder', size: 0.4 }, 
-        { dmg: 15, cd: 8000, speed: 15, shape: 'cone', size: 0.8, knockback: 2.0, count: 8, spread: 0.8 } 
+        { dmg: 16, cd: 380, speed: 45, grav: 0.1, shape: 'sphere', size: 0.2 },
+        { dmg: 28, cd: 4000, speed: 38, shape: 'flat', size: 0.2, scale: 5, knockback: 2.5 },
+        { dmg: 22, cd: 3000, speed: 58, shape: 'cylinder', size: 0.4 },
+        { dmg: 18, cd: 8000, speed: 15, shape: 'cone', size: 0.8, knockback: 2.0, count: 8, spread: 0.7 }
     ]},
     LIGHTNING: { name: 'LIGHTNING', color: 0x00ffff, moves: [
         { dmg: 35, cd: 1500, speed: 120, shape: 'lightning', size: 0.2 },
@@ -54,14 +62,23 @@ function getDir(yaw, pitch) {
     return { x: -Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: -Math.cos(yaw) * Math.cos(pitch) };
 }
 
-// Transforms world-space offset (dx, dz) into wall's local space based on its yaw.
-// Matches Three.js mesh.rotation.y = pr.yaw convention.
+// Rotate world-space offset into wall local space — matches Three.js mesh.rotation.y = yaw
 function toWallLocal(dx, dz, yaw) {
     const cos = Math.cos(yaw);
     const sin = Math.sin(yaw);
     return {
         localX:  dx * cos + dz * sin,
         localZ: -dx * sin + dz * cos
+    };
+}
+
+// Inverse — local space back to world space
+function fromWallLocal(localX, localZ, yaw) {
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    return {
+        wx: localX * cos - localZ * sin,
+        wz: localX * sin + localZ * cos
     };
 }
 
@@ -120,7 +137,7 @@ io.on('connection', (socket) => {
         }
 
         const dir = getDir(p.yaw, p.pitch);
-        
+
         if (move.type === 'flash') {
             slowMo.active = true; slowMo.owner = socket.id; slowMo.expires = now + 8000; 
             io.emit('chatMessage', { name: "SYSTEM", text: `${p.name} used Flash! Time is slowing down...` });
@@ -143,12 +160,44 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // --- GROUND SPIKES: 5 spikes erupt from the ground in a line in front of caster ---
+        if (move.type === 'groundSpikes') {
+            const flatDirX = -Math.sin(p.yaw);
+            const flatDirZ = -Math.cos(p.yaw);
+            for (let i = 0; i < 5; i++) {
+                const delay = i * 120;
+                const dist = 3 + i * 2.5;
+                const spawnX = p.x + flatDirX * dist;
+                const spawnZ = p.z + flatDirZ * dist;
+                setTimeout(() => {
+                    projectiles.push({
+                        id: "proj_" + (projCounter++),
+                        ownerId: socket.id,
+                        x: spawnX, y: -0.5, z: spawnZ,
+                        vx: 0, vy: 5.0, vz: 0,
+                        gravity: 0,
+                        life: 20,
+                        dmg: move.dmg,
+                        shape: 'spike',
+                        color: 0x8b4513,
+                        size: 0.5,
+                        knockback: 0,
+                        rootTime: 2000,
+                        isGroundSpike: true
+                    });
+                }, delay);
+            }
+            return;
+        }
+        // ---------------------------------------------------------------------------------
+
+        // --- WALL: store position at CENTER so hitbox and visual are aligned ---
         if (move.type === 'wall') {
             const dist = 6; 
             projectiles.push({
                 id: "proj_" + (projCounter++), ownerId: socket.id,
-                x: p.x + (dir.x * dist), 
-                y: p.y + 2,
+                x: p.x + (dir.x * dist),
+                y: p.y + 2,   // CENTER of wall (visual BoxGeometry(6,4,1) is also centered here)
                 z: p.z + (dir.z * dist),
                 vx: 0, vy: 0, vz: 0, gravity: 0,
                 yaw: p.yaw, 
@@ -156,6 +205,7 @@ io.on('connection', (socket) => {
             });
             return;
         }
+        // -----------------------------------------------------------------------
 
         const count = move.count || 1;
         for(let i = 0; i < count; i++) {
@@ -277,42 +327,44 @@ setInterval(() => {
         p.x += p.vx * DELTA * 3 * timeScale;
         p.z += p.vz * DELTA * 3 * timeScale;
 
-        // --- WALL COLLISION (player vs wall) ---
+        // --- WALL COLLISION: player vs wall ---
+        // Wall y = CENTER of the box. BoxGeometry(6, 4, 1) -> half-extents: X=3, Y=2, Z=0.5
         for (const pr of projectiles) {
             if (pr.isSolid && pr.shape === 'wall') {
                 const dx = p.x - pr.x; 
                 const dz = p.z - pr.z;
+                const playerCenterY = p.y + 0.9; // approx player center height
+                const dy = playerCenterY - pr.y;  // vs wall center
 
-                // Use consistent rotation math matching Three.js mesh.rotation.y = pr.yaw
+                if (Math.abs(dy) > 2.0) continue; // outside wall height, skip
+
                 const { localX, localZ } = toWallLocal(dx, dz, pr.yaw);
 
-                // Wall visual is BoxGeometry(6, 4, 1): half-extents are 3 wide, 0.5 thick
                 const halfW = 3.0;
                 const halfD = 0.5;
 
-                if (Math.abs(localX) < halfW && Math.abs(localZ) < halfD && p.y < pr.y + 4) {
-                    // Push player out along the shallowest axis
+                if (Math.abs(localX) < halfW && Math.abs(localZ) < halfD) {
                     const penX = halfW - Math.abs(localX);
                     const penZ = halfD - Math.abs(localZ);
 
                     let resolvedX = localX;
                     let resolvedZ = localZ;
 
-                    if (penZ < penX) {
-                        resolvedZ = localZ > 0 ? halfD : -halfD;
+                    if (penZ <= penX) {
+                        resolvedZ = localZ >= 0 ? halfD : -halfD;
                     } else {
-                        resolvedX = localX > 0 ? halfW : -halfW;
+                        resolvedX = localX >= 0 ? halfW : -halfW;
                     }
 
-                    // Convert resolved local position back to world space
-                    const cos = Math.cos(pr.yaw);
-                    const sin = Math.sin(pr.yaw);
-                    p.x = pr.x + resolvedX * cos - resolvedZ * sin;
-                    p.z = pr.z + resolvedX * sin + resolvedZ * cos;
+                    const { wx, wz } = fromWallLocal(resolvedX, resolvedZ, pr.yaw);
+                    p.x = pr.x + wx;
+                    p.z = pr.z + wz;
+                    p.vx = 0;
+                    p.vz = 0;
                 }
             }
         }
-        // ---------------------------------------
+        // --------------------------------------
 
         p.vy -= 15.0 * DELTA * timeScale;
         p.y += p.vy * DELTA * timeScale;
@@ -353,20 +405,20 @@ setInterval(() => {
 
         let destroyed = false;
         
-        // --- WALL COLLISION (projectile vs wall) ---
+        // --- WALL COLLISION: projectile vs wall ---
         if (!pr.isSolid && pr.dmg > 0) {
             for (let j = projectiles.length - 1; j >= 0; j--) {
                 const wall = projectiles[j];
                 if (wall.isSolid && pr.ownerId !== wall.ownerId && wall.shape === 'wall') {
                     const dx = pr.x - wall.x;
-                    const dy = pr.y - wall.y; 
+                    const dy = pr.y - wall.y;
                     const dz = pr.z - wall.z;
 
-                    // Same consistent rotation math
+                    if (Math.abs(dy) > 2.0) continue;
+
                     const { localX, localZ } = toWallLocal(dx, dz, wall.yaw);
 
-                    // Wall visual: 6 wide, 4 tall, 1 thick — half-extents: 3, 2, 0.5
-                    if (Math.abs(localX) <= 3.0 && Math.abs(localZ) <= 0.5 && Math.abs(dy) <= 2.0) { 
+                    if (Math.abs(localX) <= 3.0 && Math.abs(localZ) <= 0.5) { 
                         wall.hp -= 1;
                         if (wall.hp <= 0) wall.life = 0;
                         destroyed = true; 
@@ -375,7 +427,7 @@ setInterval(() => {
                 }
             }
         }
-        // -------------------------------------------
+        // ------------------------------------------
 
         if (!destroyed && !pr.isSolid) {
             for (const pid in players) {
