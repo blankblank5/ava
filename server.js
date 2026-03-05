@@ -54,6 +54,17 @@ function getDir(yaw, pitch) {
     return { x: -Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: -Math.cos(yaw) * Math.cos(pitch) };
 }
 
+// Transforms world-space offset (dx, dz) into wall's local space based on its yaw.
+// Matches Three.js mesh.rotation.y = pr.yaw convention.
+function toWallLocal(dx, dz, yaw) {
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    return {
+        localX:  dx * cos + dz * sin,
+        localZ: -dx * sin + dz * cos
+    };
+}
+
 io.on('connection', (socket) => {
     socket.on('joinGame', (data) => {
         const defaultCharges = ELEMENTS[data.element].moves.map(m => m.maxCharges || 1);
@@ -266,37 +277,42 @@ setInterval(() => {
         p.x += p.vx * DELTA * 3 * timeScale;
         p.z += p.vz * DELTA * 3 * timeScale;
 
+        // --- WALL COLLISION (player vs wall) ---
         for (const pr of projectiles) {
             if (pr.isSolid && pr.shape === 'wall') {
                 const dx = p.x - pr.x; 
                 const dz = p.z - pr.z;
-                
-                const cos = Math.cos(pr.yaw);
-                const sin = Math.sin(pr.yaw);
-                
-                // CORRECTED MATRIX MATH TO MATCH GAME DIRECTON AXES
-                let localX = dx * cos - dz * sin;
-                let localZ = -dx * sin - dz * cos;
 
-                if (Math.abs(localX) < 3.2 && Math.abs(localZ) < 1.0 && p.y < pr.y + 4) {
-                    let penX = 3.2 - Math.abs(localX);
-                    let penZ = 1.0 - Math.abs(localZ);
-                    
-                    if (penX < penZ) {
-                        localX = localX > 0 ? 3.2 : -3.2;
+                // Use consistent rotation math matching Three.js mesh.rotation.y = pr.yaw
+                const { localX, localZ } = toWallLocal(dx, dz, pr.yaw);
+
+                // Wall visual is BoxGeometry(6, 4, 1): half-extents are 3 wide, 0.5 thick
+                const halfW = 3.0;
+                const halfD = 0.5;
+
+                if (Math.abs(localX) < halfW && Math.abs(localZ) < halfD && p.y < pr.y + 4) {
+                    // Push player out along the shallowest axis
+                    const penX = halfW - Math.abs(localX);
+                    const penZ = halfD - Math.abs(localZ);
+
+                    let resolvedX = localX;
+                    let resolvedZ = localZ;
+
+                    if (penZ < penX) {
+                        resolvedZ = localZ > 0 ? halfD : -halfD;
                     } else {
-                        localZ = localZ > 0 ? 1.0 : -1.0;
+                        resolvedX = localX > 0 ? halfW : -halfW;
                     }
 
-                    // CORRECTED CONVERSION BACK TO GLOBAL SPACE
-                    const newDx = localX * cos - localZ * sin;
-                    const newDz = -localX * sin - localZ * cos;
-                    
-                    p.x = pr.x + newDx;
-                    p.z = pr.z + newDz;
+                    // Convert resolved local position back to world space
+                    const cos = Math.cos(pr.yaw);
+                    const sin = Math.sin(pr.yaw);
+                    p.x = pr.x + resolvedX * cos - resolvedZ * sin;
+                    p.z = pr.z + resolvedX * sin + resolvedZ * cos;
                 }
             }
         }
+        // ---------------------------------------
 
         p.vy -= 15.0 * DELTA * timeScale;
         p.y += p.vy * DELTA * timeScale;
@@ -337,6 +353,7 @@ setInterval(() => {
 
         let destroyed = false;
         
+        // --- WALL COLLISION (projectile vs wall) ---
         if (!pr.isSolid && pr.dmg > 0) {
             for (let j = projectiles.length - 1; j >= 0; j--) {
                 const wall = projectiles[j];
@@ -344,15 +361,12 @@ setInterval(() => {
                     const dx = pr.x - wall.x;
                     const dy = pr.y - wall.y; 
                     const dz = pr.z - wall.z;
-                    
-                    const cos = Math.cos(wall.yaw);
-                    const sin = Math.sin(wall.yaw);
-                    
-                    // CORRECTED MATRIX MATH FOR SPELLS HITTING THE WALL
-                    const localX = dx * cos - dz * sin;
-                    const localZ = -dx * sin - dz * cos;
 
-                    if (Math.abs(localX) <= 3.2 && Math.abs(localZ) <= 0.7 && Math.abs(dy) <= 2.2) { 
+                    // Same consistent rotation math
+                    const { localX, localZ } = toWallLocal(dx, dz, wall.yaw);
+
+                    // Wall visual: 6 wide, 4 tall, 1 thick — half-extents: 3, 2, 0.5
+                    if (Math.abs(localX) <= 3.0 && Math.abs(localZ) <= 0.5 && Math.abs(dy) <= 2.0) { 
                         wall.hp -= 1;
                         if (wall.hp <= 0) wall.life = 0;
                         destroyed = true; 
@@ -361,6 +375,7 @@ setInterval(() => {
                 }
             }
         }
+        // -------------------------------------------
 
         if (!destroyed && !pr.isSolid) {
             for (const pid in players) {
