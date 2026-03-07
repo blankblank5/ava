@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Elemental Arena</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; overflow: hidden; background: #87ceeb; font-family: 'Segoe UI', sans-serif; }
@@ -187,8 +188,7 @@
   <div class="move-slot" id="slot3"><div class="move-key">R</div><div class="charge-count" id="ch3"></div><div class="move-name" id="move3-name">Ultimate</div><div class="cooldown-overlay" id="cd3"></div></div>
 </div>
 
-<script type="module">
-import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
+<script>
 
 const SERVER_URL = 'https://ava-pwjs.onrender.com';
 const PLAYER_HEIGHT = 1.85, EYE_HEIGHT = 1.62;
