@@ -208,10 +208,9 @@
     jailGroup.add(new THREE.Mesh(plateGeo, blackMat)); 
     let roof = new THREE.Mesh(plateGeo, blackMat); roof.position.y = 10; jailGroup.add(roof);
     
-    const barGeo = new THREE.CylinderGeometry(0.12, 0.12, 10); // Slightly thicker for visibility
-    const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 }); // Normal metallic gray
+    const barGeo = new THREE.CylinderGeometry(0.12, 0.12, 10); 
+    const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 }); 
     
-    // Create and add bars properly without the broken .parent chaining
     for(let x = -5.5; x <= 5.5; x += 1.5) { 
         let b1 = new THREE.Mesh(barGeo, grayMat); b1.position.set(x, 5, -5.5); jailGroup.add(b1);
         let b2 = new THREE.Mesh(barGeo, grayMat); b2.position.set(x, 5, 5.5); jailGroup.add(b2);
@@ -221,7 +220,6 @@
         let b4 = new THREE.Mesh(barGeo, grayMat); b4.position.set(5.5, 5, z); jailGroup.add(b4);
     }
     scene.add(jailGroup);
-    // -----------------------
 
     window.initGame = (elementKey) => {
       const playerName = document.getElementById('player-name-input').value.trim() || "Player";
@@ -241,9 +239,8 @@
         document.body.requestPointerLock();
     });
 
-    // --- NUKE EVENT HANDLER ---
     socket.on('serverNuked', (data) => {
-        if (window.sessionRole === 'owner') return; // Owners are immune to the screen
+        if (window.sessionRole === 'owner') return; 
         document.exitPointerLock();
         document.body.innerHTML = `
             <div style="background:black; color:red; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:sans-serif; text-align:center;">
@@ -419,7 +416,6 @@
       if (!isGameStarted) return;
       const now = Date.now();
       
-      // OWNERS DON'T GET FLASH SCREEN VISUAL
       const overlay = document.getElementById('flash-overlay');
       overlay.style.opacity = (state.slowMo && state.slowMo.active && state.slowMo.owner !== window.myId && window.sessionRole !== 'owner') ? '1' : '0';
 
@@ -463,10 +459,38 @@
             }
         } else {
             if (!playerMeshes[id]) {
-                const group = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd });
-                const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), mat); body.position.y = 0.6;
-                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), mat); head.position.y = 1.5;
-                group.add(body, head); scene.add(group); playerMeshes[id] = group;
+                const group = new THREE.Group(); 
+                
+                // --- UPDATED CHARACTER MODEL ---
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa }); // Skin tone
+                const shirtMat = new THREE.MeshStandardMaterial({ color: 0x2255ff }); // Blue shirt
+                const pantsMat = new THREE.MeshStandardMaterial({ color: 0x333333 }); // Dark pants
+                
+                // Torso
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), shirtMat); 
+                torso.position.y = 0.6;
+                
+                // Head
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), skinMat); 
+                head.position.y = 1.5;
+                
+                // Arms
+                const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat);
+                leftArm.position.set(-0.55, 0.7, 0);
+                const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat);
+                rightArm.position.set(0.55, 0.7, 0);
+                
+                // Legs
+                const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat);
+                leftLeg.position.set(-0.2, -0.6, 0);
+                const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat);
+                rightLeg.position.set(0.2, -0.6, 0);
+                
+                torso.add(leftLeg, rightLeg); // Attach legs to torso for easy positioning
+                group.add(torso, head, leftArm, rightArm); 
+                // --------------------------------
+                
+                scene.add(group); playerMeshes[id] = group;
                 
                 const tag = document.createElement('div'); tag.className = 'nametag'; tag.innerText = p.name;
                 document.getElementById('nametags-container').appendChild(tag); nametagElements[id] = tag;
@@ -489,26 +513,25 @@
       const activeProjIds = new Set(state.projectiles.map(pr => pr.id));
       for (const pr of state.projectiles) {
           if (!projectileMeshes[pr.id]) projectileMeshes[pr.id] = createProjectileMesh(pr);
-          projectileMeshes[pr.id].position.set(pr.x, pr.y, pr.z);
-          
-          if (pr.shape === 'icosahedron' || pr.shape === 'octahedron' || pr.shape === 'tetrahedron' || pr.shape === 'torusknot') {
-              projectileMeshes[pr.id].rotation.x += 0.1; projectileMeshes[pr.id].rotation.y += 0.1;
-          }
-
-          if (pr.shape === 'wall') {
-              // LOCKS WALL ROTATION based on where you were facing when you cast it
-              projectileMeshes[pr.id].rotation.y = pr.yaw;
-          } else if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
-              if (pr.shape !== 'icosahedron' && pr.shape !== 'octahedron' && pr.shape !== 'tetrahedron' && pr.shape !== 'torusknot') {
-                  projectileMeshes[pr.id].lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
+          const mesh = projectileMeshes[pr.id];
+          mesh.position.set(pr.x, pr.y, pr.z);
+          if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
+              if (pr.shape !== 'icosahedron' && pr.shape !== 'octahedron' && pr.shape !== 'tetrahedron' && pr.shape !== 'torusknot' && pr.shape !== 'rock') {
+                  mesh.lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
+              } else {
+                  mesh.rotation.x += 0.1; mesh.rotation.y += 0.1;
               }
           }
       }
-      for (const id in projectileMeshes) { if (!activeProjIds.has(id)) { scene.remove(projectileMeshes[id]); delete projectileMeshes[id]; } }
+      for (const id in projectileMeshes) { 
+          if (!activeProjIds.has(id)) { scene.remove(projectileMeshes[id]); delete projectileMeshes[id]; } 
+      }
     });
 
     setInterval(() => { if (isGameStarted && document.pointerLockElement === document.body) socket.emit('input', inputs); }, 1000 / 30);
+    
     function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); } animate();
+    
     window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
   </script>
 </body>
