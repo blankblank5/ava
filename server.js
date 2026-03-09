@@ -1,7 +1,7 @@
 const express = require('express');
-const http = require('http');
+const http    = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
+const cors    = require('cors');
 
 const app = express();
 app.use(cors());
@@ -9,73 +9,144 @@ app.use(express.static('.'));
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
+// ─── ELEMENT DEFINITIONS ──────────────────────────────────────────────────────
 const ELEMENTS = {
-    AIR:   { color: 0xffffff, moves: [
-        { name:'Air Blast',    dmg:10, cd:350,  speed:65, shape:'sphere',      size:0.2 },
-        { name:'Wind Blade',   dmg:18, cd:3000, speed:50, shape:'flat',        size:0.2, scale:3, knockback:1.5 },
-        { name:'Air Dash',     dmg:0,  cd:2500, type:'dash', maxCharges:3 },
-        { name:'Hurricane',    dmg:6,  cd:7000, speed:28, shape:'sphere',      size:0.3, count:20, spread:0.7, auto:true, knockback:1.0 }
+    AIR: { color: 0xffffff, moves: [
+        { dmg:10,  cd:350,   speed:65,  shape:'sphere',      size:0.2 },
+        { dmg:18,  cd:3000,  speed:50,  shape:'flat',        size:0.2, scale:3, knockback:1.5 },
+        { dmg:0,   cd:2500,  type:'dash', maxCharges:3 },
+        { dmg:6,   cd:7000,  speed:28,  shape:'sphere',      size:0.3, count:20, spread:0.7, auto:true, knockback:1.0 }
     ]},
     EARTH: { color: 0x8b4513, moves: [
-        { name:'Rock Throw',   dmg:28, cd:900,  speed:32, shape:'rock',        size:0.3, grav:0.9 },
-        { name:'Ground Spikes',dmg:25, cd:4500, type:'groundSpikes' },
-        { name:'Earth Wall',   dmg:0,  cd:5000, type:'wall' },
-        { name:'Meteor',       dmg:100,cd:11000,type:'meteor', shape:'rock',   size:1.5, grav:1.5 }
+        { dmg:28,  cd:900,   speed:32,  shape:'rock',        size:0.3, grav:0.9 },
+        { dmg:25,  cd:4500,  type:'groundSpikes' },
+        { dmg:0,   cd:5000,  type:'wall' },
+        { dmg:100, cd:11000, type:'meteor', shape:'rock',    size:1.5, grav:1.5 }
     ]},
-    FIRE:  { color: 0xff4500, moves: [
-        { name:'Fireball',     dmg:15, cd:450,  speed:55, shape:'icosahedron', size:0.2 },
-        { name:'Fire Blast',   dmg:50, cd:4000, speed:28, shape:'octahedron',  size:0.5, knockback:0.5 },
-        { name:'Flamethrower', dmg:8,  cd:4500, speed:20, shape:'tetrahedron', size:0.2, count:15, spread:1.2, auto:true },
-        { name:'Flaming Meteor',dmg:130,cd:14000,type:'meteor',shape:'icosahedron',size:1.0,grav:1.0 }
+    FIRE: { color: 0xff4500, moves: [
+        { dmg:15,  cd:450,   speed:55,  shape:'icosahedron', size:0.2 },
+        { dmg:50,  cd:4000,  speed:28,  shape:'octahedron',  size:0.5, knockback:0.5 },
+        { dmg:8,   cd:4500,  speed:20,  shape:'tetrahedron', size:0.2, count:15, spread:1.2, auto:true },
+        { dmg:130, cd:14000, type:'meteor', shape:'icosahedron', size:1.0, grav:1.0 }
     ]},
     WATER: { color: 0x0088ff, moves: [
-        { name:'Water Bullet', dmg:16, cd:380,  speed:45, shape:'sphere',      size:0.2, grav:0.1 },
-        { name:'Tsunami',      dmg:28, cd:4000, speed:38, shape:'flat',        size:0.2, scale:5, knockback:2.5 },
-        { name:'Water Whip',   dmg:22, cd:3000, speed:58, shape:'cylinder',    size:0.4 },
-        { name:'Whirlpool',    dmg:18, cd:8000, type:'whirlpool' }
+        { dmg:16,  cd:380,   speed:45,  shape:'sphere',      size:0.2, grav:0.1 },
+        { dmg:28,  cd:4000,  speed:38,  shape:'flat',        size:0.2, scale:5, knockback:2.5 },
+        { dmg:22,  cd:3000,  speed:58,  shape:'cylinder',    size:0.4 },
+        { dmg:18,  cd:8000,  type:'whirlpool' }
     ]},
     LIGHTNING: { color: 0x00ffff, moves: [
-        { name:'Lightning Strike',dmg:35,cd:1500, speed:120,shape:'lightning', size:0.2 },
-        { name:'Flash',          dmg:0, cd:15000,type:'flash' },
-        { name:'Spark Dash',     dmg:0, cd:1000, type:'dash', maxCharges:2 },
-        { name:'Thunderstorm',   dmg:15,cd:6000, speed:80, shape:'sphere',     size:0.2, count:15, spread:1.5, auto:true }
+        { dmg:35,  cd:1500,  speed:120, shape:'lightning',   size:0.2 },
+        { dmg:0,   cd:15000, type:'flash' },
+        { dmg:0,   cd:1000,  type:'dash', maxCharges:2 },
+        { dmg:15,  cd:6000,  speed:80,  shape:'sphere',      size:0.2, count:15, spread:1.5, auto:true }
     ]}
 };
 
-const players = {};
-const projectiles = [];
-let projCounter = 0;
-let slowMo = { active: false, owner: null, expires: 0 };
-const TICK_RATE = 30;
-const DELTA = 1 / TICK_RATE;
-const WALL_HALF_W = 3.0, WALL_HALF_H = 2.0, WALL_HALF_D = 0.5;
+const UPGRADED_MOVES = {
+    AIR:   { name:'Gale Force',   dmg:22, cd:280,  speed:90,  shape:'sphere',      size:0.3,  knockback:0.8 },
+    EARTH: { name:'Boulder Slam', dmg:45, cd:1100, speed:28,  shape:'rock',        size:0.55, grav:1.2 },
+    FIRE:  { name:'Inferno Shot', dmg:30, cd:320,  speed:70,  shape:'icosahedron', size:0.35, knockback:0.3 },
+    WATER: { name:'Torrent',      dmg:24, cd:280,  speed:60,  shape:'sphere',      size:0.35, grav:0.05, knockback:0.5 }
+};
 
+const BOSS_REWARD_MOVES = {
+    AIR:       { name:'Cyclone',     dmg:12,  cd:5000,  speed:35,  shape:'sphere',      size:0.35, count:30, spread:0.5, auto:true, knockback:1.5 },
+    EARTH:     { name:'Earthquake',  dmg:40,  cd:9000,  type:'groundSpikes', count:12 },
+    FIRE:      { name:'Firestorm',   dmg:180, cd:12000, type:'meteor', shape:'icosahedron', size:1.4, grav:0.9 },
+    WATER:     { name:'Tidal Wave',  dmg:40,  cd:6000,  speed:50,  shape:'flat',        size:0.35, scale:8, knockback:4.0 },
+    LIGHTNING: { name:'Thunder God', dmg:60,  cd:4000,  speed:150, shape:'lightning',   size:0.35 }
+};
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const TICK_RATE   = 30;
+const DELTA       = 1 / TICK_RATE;
+const WALL_HALF_W = 3.0, WALL_HALF_H = 2.0, WALL_HALF_D = 0.5;
+const BOSS_ARENA  = { x:120, z:0, radius:28 };
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+const players     = {};
+const projectiles = [];
+let   projCounter = 0;
+let   slowMo      = { active:false, owner:null, expires:0 };
+
+let boss = {
+    alive:true, hp:3000, maxHp:3000,
+    x:120, y:0, z:0, vx:0, vz:0, yaw:0,
+    phase:1, attackTimer:0, targetId:null, respawnTimer:0
+};
+
+const SHRINES = {
+    AIR:   { x:0,    y:80, z:-140, collected:new Set() },
+    EARTH: { x:140,  y:55, z:0,    collected:new Set() },
+    FIRE:  { x:-140, y:65, z:0,    collected:new Set() },
+    WATER: { x:0,    y:60, z:140,  collected:new Set() }
+};
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 function getDir(yaw, pitch) {
-    return { x: -Math.sin(yaw)*Math.cos(pitch), y: Math.sin(pitch), z: -Math.cos(yaw)*Math.cos(pitch) };
+    return { x:-Math.sin(yaw)*Math.cos(pitch), y:Math.sin(pitch), z:-Math.cos(yaw)*Math.cos(pitch) };
 }
-function getFlatDir(yaw) { return { x: -Math.sin(yaw), z: -Math.cos(yaw) }; }
+function getFlatDir(yaw) {
+    return { x:-Math.sin(yaw), z:-Math.cos(yaw) };
+}
+function dist2D(ax, az, bx, bz) {
+    const dx=ax-bx, dz=az-bz; return Math.sqrt(dx*dx+dz*dz);
+}
 function toWallLocal(dx, dz, yaw) {
     const c=Math.cos(yaw), s=Math.sin(yaw);
-    return { localX: dx*c+dz*s, localZ: -dx*s+dz*c };
+    return { localX:dx*c+dz*s, localZ:-dx*s+dz*c };
 }
 function fromWallLocal(lx, lz, yaw) {
     const c=Math.cos(yaw), s=Math.sin(yaw);
-    return { wx: lx*c-lz*s, wz: lx*s+lz*c };
+    return { wx:lx*c-lz*s, wz:lx*s+lz*c };
 }
 
+// ─── BOSS ATTACKS ─────────────────────────────────────────────────────────────
+function bossFireAt(target) {
+    const dx=target.x-boss.x, dy=(target.y+0.9)-(boss.y+3), dz=target.z-boss.z;
+    const len=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
+    const spd=boss.phase===2?28:20;
+    projectiles.push({
+        id:'bp_'+(projCounter++), ownerId:'BOSS',
+        x:boss.x, y:boss.y+3, z:boss.z,
+        vx:(dx/len)*spd, vy:(dy/len)*spd+2, vz:(dz/len)*spd,
+        gravity:0.4, life:200, dmg:boss.phase===2?18:12,
+        shape:'rock', color:0x8b4513, size:0.4, knockback:0.5
+    });
+}
+function bossStomp() {
+    const count=boss.phase===2?10:6;
+    for (let i=0;i<count;i++) {
+        const angle=(i/count)*Math.PI*2, r=4+Math.random()*5;
+        setTimeout(()=>{
+            projectiles.push({
+                id:'bp_'+(projCounter++), ownerId:'BOSS',
+                x:boss.x+Math.cos(angle)*r, y:0, z:boss.z+Math.sin(angle)*r,
+                vx:0, vy:0, vz:0, gravity:0, life:35, dmg:20,
+                shape:'spike', color:0x5a2d0c, size:0.6, isGroundSpike:true, rootTime:1500
+            });
+        }, i*80);
+    }
+}
+
+// ─── SOCKET EVENTS ────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
+
     socket.on('joinGame', (data) => {
         if (!ELEMENTS[data.element]) return;
         const charges = ELEMENTS[data.element].moves.map(m => m.maxCharges||1);
         players[socket.id] = {
-            id: socket.id, name: data.name, role: 'player',
-            ogElement: data.element, element: data.element, unlockedElements: [data.element],
-            hp: 100, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0,
-            isFrozen: false, isJailed: false, isMuted: false, godMode: false, noCooldowns: false, rootUntil: 0,
-            charges: [...charges], rechargeTimers: [0,0,0,0],
-            inputs: { forward:false, backward:false, left:false, right:false, jump:false, sprint:false }
+            id:socket.id, name:data.name, role:'player',
+            ogElement:data.element, element:data.element, unlockedElements:[data.element],
+            hp:100, x:0, y:0, z:0, vx:0, vy:0, vz:0, yaw:0, pitch:0,
+            isFrozen:false, isJailed:false, isMuted:false, godMode:false, noCooldowns:false, rootUntil:0,
+            charges:[...charges], rechargeTimers:[0,0,0,0],
+            inputs:{forward:false,backward:false,left:false,right:false,jump:false,sprint:false},
+            shrineCollected:false, bossRewardCollected:false,
+            upgradedMove:null, bossRewardMove:null
         };
-        socket.emit('joinSuccess', { id: socket.id });
+        socket.emit('joinSuccess', { id:socket.id });
     });
 
     socket.on('setRole', (role) => {
@@ -84,63 +155,71 @@ io.on('connection', (socket) => {
     });
 
     socket.on('chatMessage', (msg) => {
-        const p = players[socket.id];
-        if (!p || p.isMuted) return;
-        io.emit('chatMessage', { name: p.name, text: String(msg).substring(0,100) });
+        const p=players[socket.id];
+        if (!p||p.isMuted) return;
+        io.emit('chatMessage', { name:p.name, text:String(msg).substring(0,100) });
     });
 
     socket.on('input', (data) => {
-        const p = players[socket.id];
-        if (!p || p.isFrozen) return;
-        p.inputs = data; p.yaw = data.yaw; p.pitch = data.pitch;
+        const p=players[socket.id];
+        if (!p||p.isFrozen) return;
+        p.inputs=data; p.yaw=data.yaw; p.pitch=data.pitch;
     });
 
     socket.on('switchElement', (elName) => {
-        const p = players[socket.id];
-        if (!p || !p.unlockedElements.includes(elName) || !ELEMENTS[elName]) return;
-        p.element = elName;
-        p.charges = ELEMENTS[elName].moves.map(m => m.maxCharges||1);
-        p.rechargeTimers = [0,0,0,0];
+        const p=players[socket.id];
+        if (!p||!p.unlockedElements.includes(elName)||!ELEMENTS[elName]) return;
+        p.element=elName;
+        p.charges=ELEMENTS[elName].moves.map(m=>m.maxCharges||1);
+        p.rechargeTimers=[0,0,0,0];
+        p.upgradedMove=p.shrineCollected?(UPGRADED_MOVES[elName]||null):null;
     });
 
     socket.on('useMove', (index) => {
-        const p = players[socket.id];
-        if (!p || p.isFrozen) return;
-        const elem = ELEMENTS[p.element];
-        if (!elem || !elem.moves[index]) return;
-        const move = elem.moves[index];
-        const now = Date.now();
-        if (!p.noCooldowns && p.charges[index] <= 0) return;
+        const p=players[socket.id];
+        if (!p||p.isFrozen) return;
+        const elem=ELEMENTS[p.element];
+        if (!elem||!elem.moves[index]) return;
+
+        let move;
+        if (index===0 && p.upgradedMove)    move=p.upgradedMove;
+        else if (index===3 && p.bossRewardMove) move=p.bossRewardMove;
+        else move=elem.moves[index];
+
+        const now=Date.now();
+        if (!p.noCooldowns && p.charges[index]<=0) return;
         if (!p.noCooldowns) {
             p.charges[index]--;
-            if (p.charges[index] < (move.maxCharges||1))
-                p.rechargeTimers[index] = now + move.cd;
+            if (p.charges[index]===(move.maxCharges||1)-1)
+                p.rechargeTimers[index]=now+move.cd;
         }
-        const dir = getDir(p.yaw, p.pitch);
-        const flat = getFlatDir(p.yaw);
 
-        if (move.type === 'flash') {
-            slowMo.active = true; slowMo.owner = socket.id; slowMo.expires = now + 8000;
-            io.emit('chatMessage', { name:'SYSTEM', text:`${p.name} used Flash! Time slowing...` });
+        const dir=getDir(p.yaw, p.pitch);
+        const flat=getFlatDir(p.yaw);
+
+        if (move.type==='flash') {
+            slowMo.active=true; slowMo.owner=socket.id; slowMo.expires=now+8000;
+            io.emit('chatMessage',{name:'SYSTEM',text:`${p.name} used Flash! Time is slowing...`});
             return;
         }
-        if (move.type === 'dash') {
-            if (dir.y > 0.4) { p.vy = 25; p.vx += dir.x*10; p.vz += dir.z*10; }
-            else { p.vx += dir.x*40; p.vz += dir.z*40; p.vy = 5; }
+        if (move.type==='dash') {
+            if (dir.y>0.4) { p.vy=25; p.vx+=dir.x*10; p.vz+=dir.z*10; }
+            else { p.vx+=dir.x*40; p.vz+=dir.z*40; p.vy=5; }
             return;
         }
-        if (move.type === 'meteor') {
-            const d = 25;
+        if (move.type==='meteor') {
+            const d=25;
             projectiles.push({
                 id:'p_'+(projCounter++), ownerId:socket.id,
-                x:p.x+dir.x*d, y:p.y+30, z:p.z+dir.z*d,
+                x:p.x+dir.x*d+(Math.random()-0.5)*1.5, y:p.y+30,
+                z:p.z+dir.z*d+(Math.random()-0.5)*1.5,
                 vx:0, vy:-35, vz:0, gravity:move.grav||1.0,
                 life:300, dmg:move.dmg, shape:move.shape,
                 color:elem.color, size:move.size||1, knockback:1.5
             });
             return;
         }
-        if (move.type === 'wall') {
+        if (move.type==='wall') {
             projectiles.push({
                 id:'p_'+(projCounter++), ownerId:socket.id,
                 x:p.x+flat.x*6, y:Math.max(p.y,0)+WALL_HALF_H, z:p.z+flat.z*6,
@@ -149,12 +228,12 @@ io.on('connection', (socket) => {
             });
             return;
         }
-        if (move.type === 'groundSpikes') {
-            const count = move.count||5;
-            for (let i=0; i<count; i++) {
-                const dist = 3+i*2.2;
-                const ax = p.x+dir.x*dist, az = p.z+dir.z*dist;
-                setTimeout(() => {
+        if (move.type==='groundSpikes') {
+            const count=move.count||5;
+            for (let i=0;i<count;i++) {
+                const dist=3+i*2.2;
+                const ax=p.x+dir.x*dist, az=p.z+dir.z*dist;
+                setTimeout(()=>{
                     projectiles.push({
                         id:'p_'+(projCounter++), ownerId:socket.id,
                         x:ax+(Math.random()-0.5)*0.4, y:0, z:az+(Math.random()-0.5)*0.4,
@@ -166,10 +245,10 @@ io.on('connection', (socket) => {
             }
             return;
         }
-        if (move.type === 'whirlpool') {
-            for (let i=0; i<10; i++) {
+        if (move.type==='whirlpool') {
+            for (let i=0;i<10;i++) {
                 const angle=(i/10)*Math.PI*2, sd=3+Math.random()*1.5;
-                setTimeout(() => {
+                setTimeout(()=>{
                     projectiles.push({
                         id:'p_'+(projCounter++), ownerId:socket.id,
                         x:p.x+Math.cos(angle)*sd, y:0.3, z:p.z+Math.sin(angle)*sd,
@@ -182,11 +261,11 @@ io.on('connection', (socket) => {
             return;
         }
         // Standard projectile
-        const count = move.count||1;
-        for (let i=0; i<count; i++) {
-            setTimeout(() => {
+        const count=move.count||1;
+        for (let i=0;i<count;i++) {
+            setTimeout(()=>{
                 let dx=dir.x, dy=dir.y, dz=dir.z;
-                if (move.spread > 0) {
+                if (move.spread>0) {
                     dx+=(Math.random()-0.5)*move.spread;
                     dy+=(Math.random()-0.5)*move.spread;
                     dz+=(Math.random()-0.5)*move.spread;
@@ -197,49 +276,49 @@ io.on('connection', (socket) => {
                     id:'p_'+(projCounter++), ownerId:socket.id,
                     x:p.x+dx*1.5, y:p.y+1.2+dy*1.5, z:p.z+dz*1.5,
                     vx:dx*move.speed, vy:dy*move.speed, vz:dz*move.speed,
-                    gravity:move.grav||0, life:200, dmg:move.dmg,
+                    gravity:move.grav||0, life:move.life||200, dmg:move.dmg,
                     shape:move.shape, color:elem.color,
                     size:move.size*(move.scale||1),
                     knockback:move.knockback||0, rootTime:move.rootTime||0
                 });
-            }, move.auto ? i*50 : 0);
+            }, move.auto?i*50:0);
         }
     });
 
     socket.on('adminCommand', (data) => {
-        const p = players[socket.id];
-        if (!p || (p.role!=='admin' && p.role!=='owner')) return;
-        const target = players[data.targetId];
-        if (data.action === 'nuke') {
-            if (p.role === 'owner') {
-                io.emit('serverNuked', { by: p.name });
-                io.emit('chatMessage', { name:'SYSTEM', text:`${p.name} has nuked the server!` });
+        const p=players[socket.id];
+        if (!p||(p.role!=='admin'&&p.role!=='owner')) return;
+        const target=players[data.targetId];
+        if (data.action==='nuke') {
+            if (p.role==='owner') {
+                io.emit('serverNuked',{by:p.name});
+                io.emit('chatMessage',{name:'SYSTEM',text:`${p.name} has nuked the server!`});
             }
             return;
         }
         if (!target) return;
-        if      (data.action==='jail')        { target.isJailed=!target.isJailed; if(target.isJailed){target.x=20;target.y=1;target.z=20;} }
-        else if (data.action==='mute')         target.isMuted=!target.isMuted;
-        else if (data.action==='kick')        { const s=io.sockets.sockets.get(data.targetId); if(s)s.disconnect(); }
-        else if (data.action==='freeze')       target.isFrozen=!target.isFrozen;
-        else if (data.action==='tp')          { p.x=target.x; p.y=target.y+2; p.z=target.z; }
-        else if (data.action==='bring')       { target.x=p.x; target.y=p.y+2; target.z=p.z; }
-        else if (data.action==='heal')         target.hp=100;
-        else if (data.action==='godmode')     { target.godMode=!target.godMode; if(target.godMode)target.hp=100; }
-        else if (data.action==='nocooldown')   target.noCooldowns=!target.noCooldowns;
-        else if (data.action==='givePower')   {
+        if      (data.action==='jail')       { target.isJailed=!target.isJailed; if(target.isJailed){target.x=20;target.y=1;target.z=20;} }
+        else if (data.action==='mute')        target.isMuted=!target.isMuted;
+        else if (data.action==='kick')       { const s=io.sockets.sockets.get(data.targetId); if(s)s.disconnect(); }
+        else if (data.action==='freeze')      target.isFrozen=!target.isFrozen;
+        else if (data.action==='tp')         { p.x=target.x; p.y=target.y+2; p.z=target.z; }
+        else if (data.action==='bring')      { target.x=p.x; target.y=p.y+2; target.z=p.z; }
+        else if (data.action==='heal')        target.hp=100;
+        else if (data.action==='godmode')    { target.godMode=!target.godMode; if(target.godMode)target.hp=100; }
+        else if (data.action==='nocooldown')  target.noCooldowns=!target.noCooldowns;
+        else if (data.action==='givePower')  {
             if (!target.unlockedElements.includes(data.value)) target.unlockedElements.push(data.value);
             target.element=data.value;
             target.charges=ELEMENTS[data.value].moves.map(m=>m.maxCharges||1);
         }
-        else if (data.action==='giveAll')      target.unlockedElements=['AIR','EARTH','FIRE','WATER','LIGHTNING'];
+        else if (data.action==='giveAll')    target.unlockedElements=['AIR','EARTH','FIRE','WATER','LIGHTNING'];
         else if (data.action==='equipLightning') {
             if (!target.unlockedElements.includes('LIGHTNING')) target.unlockedElements.push('LIGHTNING');
             target.element='LIGHTNING';
             target.charges=ELEMENTS['LIGHTNING'].moves.map(m=>m.maxCharges||1);
         }
-        if (p.role === 'owner') {
-            if      (data.action==='giveAdmin')        target.role='admin';
+        if (p.role==='owner') {
+            if      (data.action==='giveAdmin')       target.role='admin';
             else if (data.action==='removeAllPowers') {
                 target.unlockedElements=[target.ogElement]; target.element=target.ogElement;
                 target.charges=ELEMENTS[target.ogElement].moves.map(m=>m.maxCharges||1);
@@ -255,31 +334,78 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => { delete players[socket.id]; });
 });
 
-// ─── TICK ─────────────────────────────────────────────────────────────────────
+// ─── MAIN TICK ────────────────────────────────────────────────────────────────
 setInterval(() => {
-    const now = Date.now();
+    const now=Date.now();
 
-    if (slowMo.active && now > slowMo.expires) { slowMo.active=false; slowMo.owner=null; }
+    // SlowMo expiry
+    if (slowMo.active && now>slowMo.expires) { slowMo.active=false; slowMo.owner=null; }
 
+    // Boss AI
+    if (boss.alive) {
+        boss.phase=boss.hp<boss.maxHp*0.5?2:1;
+        let closest=null, closestDist=999;
+        for (const id in players) {
+            const p=players[id];
+            if (dist2D(p.x,p.z,BOSS_ARENA.x,BOSS_ARENA.z)<BOSS_ARENA.radius+40) {
+                const d=dist2D(p.x,p.z,boss.x,boss.z);
+                if (d<closestDist) { closestDist=d; closest=p; }
+            }
+        }
+        if (closest) {
+            const dx=closest.x-boss.x, dz=closest.z-boss.z;
+            const len=Math.sqrt(dx*dx+dz*dz)||1;
+            const spd=boss.phase===2?4.5:3.0;
+            boss.vx+=(dx/len)*spd*DELTA; boss.vz+=(dz/len)*spd*DELTA;
+            boss.yaw=Math.atan2(-dx,-dz);
+        }
+        boss.vx*=0.85; boss.vz*=0.85;
+        boss.x+=boss.vx*DELTA*3; boss.z+=boss.vz*DELTA*3;
+        const bd=dist2D(boss.x,boss.z,BOSS_ARENA.x,BOSS_ARENA.z);
+        if (bd>BOSS_ARENA.radius-3) {
+            const ang=Math.atan2(boss.z-BOSS_ARENA.z,boss.x-BOSS_ARENA.x);
+            boss.x=BOSS_ARENA.x+Math.cos(ang)*(BOSS_ARENA.radius-3);
+            boss.z=BOSS_ARENA.z+Math.sin(ang)*(BOSS_ARENA.radius-3);
+            boss.vx*=-0.5; boss.vz*=-0.5;
+        }
+        boss.y=0;
+        if (now>boss.attackTimer) {
+            boss.attackTimer=now+(boss.phase===2?1200:2000);
+            if (closest) {
+                if (Math.random()<0.6) {
+                    for(let b=0;b<3;b++) setTimeout(()=>{if(closest&&players[closest.id])bossFireAt(players[closest.id]);},b*250);
+                } else bossStomp();
+            }
+        }
+    } else {
+        if (!boss.respawnTimer) boss.respawnTimer=now+90000;
+        if (now>boss.respawnTimer) {
+            boss={alive:true,hp:3000,maxHp:3000,x:120,y:0,z:0,vx:0,vz:0,yaw:0,phase:1,attackTimer:0,targetId:null,respawnTimer:0};
+            Object.values(SHRINES).forEach(s=>s.collected=new Set());
+            io.emit('chatMessage',{name:'SYSTEM',text:'⚠️ The Stone Titan has returned!'});
+        }
+    }
+
+    // Players
     for (const id in players) {
-        const p = players[id];
-        const elem = ELEMENTS[p.element];
+        const p=players[id];
+        const elemMoves=ELEMENTS[p.element].moves;
 
-        // Recharge
-        for (let i=0; i<4; i++) {
-            const max = elem.moves[i].maxCharges||1;
-            if (p.charges[i] < max && now >= p.rechargeTimers[i]) {
+        // Charge recharge
+        for (let i=0;i<4;i++) {
+            const max=elemMoves[i].maxCharges||1;
+            if (p.charges[i]<max&&now>=p.rechargeTimers[i]) {
                 p.charges[i]++;
-                if (p.charges[i] < max) p.rechargeTimers[i] = now + elem.moves[i].cd;
+                if (p.charges[i]<max) p.rechargeTimers[i]=now+elemMoves[i].cd;
             }
         }
 
         if (p.isFrozen) continue;
-        const ts = slowMo.active && id!==slowMo.owner && p.role!=='owner' ? 0.2 : 1.0;
+        const ts=slowMo.active&&id!==slowMo.owner&&p.role!=='owner'?0.2:1.0;
 
         // Movement
         let mx=0, mz=0;
-        if (now > p.rootUntil) {
+        if (now>p.rootUntil) {
             const fx=-Math.sin(p.yaw), fz=-Math.cos(p.yaw), rx=Math.cos(p.yaw), rz=-Math.sin(p.yaw);
             if(p.inputs.forward) {mx+=fx;mz+=fz;}
             if(p.inputs.backward){mx-=fx;mz-=fz;}
@@ -287,18 +413,18 @@ setInterval(() => {
             if(p.inputs.left)    {mx-=rx;mz-=rz;}
             const len=Math.sqrt(mx*mx+mz*mz); if(len>0){mx/=len;mz/=len;}
         }
-        const spd = p.inputs.sprint ? 18 : 10;
+        const spd=p.inputs.sprint?18:10;
         p.vx+=mx*spd*DELTA*ts; p.vz+=mz*spd*DELTA*ts;
         p.vx-=p.vx*5*DELTA*ts; p.vz-=p.vz*5*DELTA*ts;
         p.x+=p.vx*DELTA*3*ts;  p.z+=p.vz*DELTA*3*ts;
 
         // Wall collision
         for (const pr of projectiles) {
-            if (!pr.isSolid || pr.shape!=='wall') continue;
+            if (!pr.isSolid||pr.shape!=='wall') continue;
             const dx=p.x-pr.x, dz=p.z-pr.z, dy=(p.y+0.9)-pr.y;
-            if (Math.abs(dy) > WALL_HALF_H) continue;
-            const {localX,localZ} = toWallLocal(dx,dz,pr.yaw);
-            if (Math.abs(localX)<WALL_HALF_W && Math.abs(localZ)<WALL_HALF_D) {
+            if (Math.abs(dy)>WALL_HALF_H) continue;
+            const {localX,localZ}=toWallLocal(dx,dz,pr.yaw);
+            if (Math.abs(localX)<WALL_HALF_W&&Math.abs(localZ)<WALL_HALF_D) {
                 const penX=WALL_HALF_W-Math.abs(localX), penZ=WALL_HALF_D-Math.abs(localZ);
                 let rX=localX, rZ=localZ;
                 if(penZ<=penX){rZ=localZ>=0?WALL_HALF_D:-WALL_HALF_D;}
@@ -311,7 +437,7 @@ setInterval(() => {
         // Gravity & jump
         p.vy-=15*DELTA*ts; p.y+=p.vy*DELTA*ts;
 
-        // Jail
+        // Jail bounds
         if (p.isJailed) {
             p.x=Math.max(14.5,Math.min(25.5,p.x));
             p.z=Math.max(14.5,Math.min(25.5,p.z));
@@ -320,80 +446,130 @@ setInterval(() => {
             if(p.x>13.5&&p.x<26.5&&p.z>13.5&&p.z<26.5&&p.y<10){
                 const d1=Math.abs(p.x-13.5),d2=Math.abs(26.5-p.x),d3=Math.abs(p.z-13.5),d4=Math.abs(26.5-p.z);
                 const mn=Math.min(d1,d2,d3,d4);
-                if(mn===d1)p.x=13.5; else if(mn===d2)p.x=26.5; else if(mn===d3)p.z=13.5; else p.z=26.5;
+                if(mn===d1)p.x=13.5;else if(mn===d2)p.x=26.5;else if(mn===d3)p.z=13.5;else p.z=26.5;
             }
         }
-        if (p.y <= 0) {
+        if (p.y<=0) {
             p.y=0; p.vy=0;
             if(p.inputs.jump&&now>p.rootUntil){p.vy=6;p.inputs.jump=false;}
         }
 
-        // Death
-        if (p.hp <= 0) {
+        // Death/respawn
+        if (p.hp<=0) {
             p.hp=100; p.vx=0; p.vy=0; p.vz=0; p.rootUntil=0;
             if(p.isJailed){p.x=20;p.y=1;p.z=20;}else{p.x=0;p.y=0;p.z=0;}
             io.to(id).emit('death');
         }
-        if (p.godMode && p.hp < 100) p.hp = Math.min(100, p.hp+2);
+        if (p.godMode&&p.hp<100) p.hp=Math.min(100,p.hp+2);
+
+        // Shrine collection
+        if (!p.shrineCollected) {
+            const shrine=SHRINES[p.element];
+            if (shrine&&!shrine.collected.has(id)) {
+                const sx=p.x-shrine.x, sy=p.y-shrine.y, sz=p.z-shrine.z;
+                if (Math.sqrt(sx*sx+sy*sy+sz*sz)<4) {
+                    shrine.collected.add(id); p.shrineCollected=true;
+                    p.upgradedMove=UPGRADED_MOVES[p.element]||null;
+                    io.to(id).emit('shrineCollected',{element:p.element,moveName:p.upgradedMove?p.upgradedMove.name:'?'});
+                    io.emit('chatMessage',{name:'SYSTEM',text:`✨ ${p.name} claimed the ${p.element} Sky Shrine!`});
+                }
+            }
+        }
     }
 
     // Projectiles
-    for (let i=projectiles.length-1; i>=0; i--) {
-        const pr = projectiles[i];
-        const pts = slowMo.active && pr.ownerId!==slowMo.owner && (!players[pr.ownerId]||players[pr.ownerId].role!=='owner') ? 0.05 : 1.0;
+    for (let i=projectiles.length-1;i>=0;i--) {
+        const pr=projectiles[i];
+        const pts=slowMo.active&&pr.ownerId!==slowMo.owner&&(!players[pr.ownerId]||players[pr.ownerId].role!=='owner')?0.05:1.0;
         pr.x+=pr.vx*DELTA*pts; pr.y+=pr.vy*DELTA*pts; pr.z+=pr.vz*DELTA*pts;
         pr.vy-=pr.gravity*pts; pr.life-=pts;
-        let destroyed = false;
+        let destroyed=false;
 
         // vs walls
-        if (!pr.isSolid && pr.dmg > 0) {
-            for (let j=projectiles.length-1; j>=0; j--) {
-                const wall = projectiles[j];
-                if (!wall.isSolid || wall.shape!=='wall' || pr.ownerId===wall.ownerId) continue;
+        if (!pr.isSolid&&pr.dmg>0) {
+            for (let j=projectiles.length-1;j>=0;j--) {
+                const wall=projectiles[j];
+                if (!wall.isSolid||wall.shape!=='wall'||pr.ownerId===wall.ownerId) continue;
                 const dx=pr.x-wall.x, dy=pr.y-wall.y, dz=pr.z-wall.z;
-                if (Math.abs(dy) > WALL_HALF_H) continue;
-                const {localX,localZ} = toWallLocal(dx,dz,wall.yaw);
-                if (Math.abs(localX)<=WALL_HALF_W && Math.abs(localZ)<=WALL_HALF_D) {
+                if (Math.abs(dy)>WALL_HALF_H) continue;
+                const {localX,localZ}=toWallLocal(dx,dz,wall.yaw);
+                if (Math.abs(localX)<=WALL_HALF_W&&Math.abs(localZ)<=WALL_HALF_D) {
                     wall.hp--; if(wall.hp<=0)wall.life=0; destroyed=true; break;
                 }
             }
         }
 
         // Ground spikes vs players
-        if (!destroyed && pr.isGroundSpike) {
+        if (!destroyed&&pr.isGroundSpike) {
             for (const pid in players) {
                 if (pid===pr.ownerId) continue;
                 const t=players[pid]; const dx=pr.x-t.x, dz=pr.z-t.z;
-                if (Math.sqrt(dx*dx+dz*dz)<1.5 && t.y<2) {
-                    if(!t.godMode){t.hp-=pr.dmg; t.rootUntil=Date.now()+pr.rootTime;}
+                if (Math.sqrt(dx*dx+dz*dz)<1.5&&t.y<2) {
+                    if(!t.godMode){t.hp-=pr.dmg;t.rootUntil=Date.now()+pr.rootTime;}
                     destroyed=true; break;
                 }
             }
         }
 
-        // vs players
-        if (!destroyed && !pr.isSolid && !pr.isGroundSpike) {
+        // Boss projectiles vs players
+        if (!destroyed&&pr.ownerId==='BOSS') {
+            for (const pid in players) {
+                const t=players[pid]; const dx=pr.x-t.x, dy=pr.y-(t.y+0.9), dz=pr.z-t.z;
+                if (Math.sqrt(dx*dx+dy*dy+dz*dz)<(pr.size*2+1.2)) {
+                    if(!t.godMode){t.hp-=pr.dmg;if(pr.knockback){t.vx+=pr.vx*pr.knockback*0.1;t.vy+=6;t.vz+=pr.vz*pr.knockback*0.1;}}
+                    if(pr.shape!=='spike')destroyed=true; break;
+                }
+            }
+        }
+
+        // Player projectiles vs boss
+        if (!destroyed&&!pr.isSolid&&!pr.isGroundSpike&&pr.ownerId!=='BOSS'&&boss.alive) {
+            const dx=pr.x-boss.x, dy=pr.y-(boss.y+2.5), dz=pr.z-boss.z;
+            if (Math.sqrt(dx*dx+dy*dy+dz*dz)<(pr.size*2+2.5)) {
+                boss.hp-=pr.dmg; destroyed=true;
+                if (boss.hp<=0) {
+                    boss.alive=false; boss.hp=0;
+                    io.emit('bossDefeated');
+                    for (const pid in players) {
+                        const t=players[pid];
+                        if (dist2D(t.x,t.z,BOSS_ARENA.x,BOSS_ARENA.z)<BOSS_ARENA.radius+20&&!t.bossRewardCollected) {
+                            t.bossRewardCollected=true;
+                            t.bossRewardMove=BOSS_REWARD_MOVES[t.element]||BOSS_REWARD_MOVES['AIR'];
+                            io.to(pid).emit('bossReward',{moveName:t.bossRewardMove.name});
+                        }
+                    }
+                    io.emit('chatMessage',{name:'SYSTEM',text:'🏆 The Stone Titan has been slain!'});
+                }
+            }
+        }
+
+        // Player projectiles vs players
+        if (!destroyed&&!pr.isSolid&&!pr.isGroundSpike&&pr.ownerId!=='BOSS') {
             for (const pid in players) {
                 if (pid===pr.ownerId) continue;
                 const t=players[pid]; const dx=pr.x-t.x, dy=pr.y-(t.y+0.9), dz=pr.z-t.z;
-                if (Math.sqrt(dx*dx+dy*dy+dz*dz) < (pr.size*2+1.5)) {
+                if (Math.sqrt(dx*dx+dy*dy+dz*dz)<(pr.size*2+1.5)) {
                     if(!t.godMode){
                         t.hp-=pr.dmg;
                         if(pr.knockback){t.vx+=pr.vx*pr.knockback*0.1;t.vy+=8;t.vz+=pr.vz*pr.knockback*0.1;}
-                        if(pr.rootTime) t.rootUntil=Date.now()+pr.rootTime;
+                        if(pr.rootTime)t.rootUntil=Date.now()+pr.rootTime;
                     }
-                    if(pr.shape!=='flat'&&pr.shape!=='cylinder'&&pr.shape!=='whirlpool') destroyed=true;
+                    if(pr.shape!=='flat'&&pr.shape!=='cylinder'&&pr.shape!=='whirlpool')destroyed=true;
                     break;
                 }
             }
         }
 
-        if (destroyed || pr.y<=-2 || pr.life<=0) projectiles.splice(i,1);
+        if (destroyed||pr.y<=-2||pr.life<=0) projectiles.splice(i,1);
     }
 
-    io.emit('gameState', { players, projectiles, slowMo });
+    io.emit('gameState',{
+        players, projectiles, slowMo,
+        boss:{alive:boss.alive,hp:boss.hp,maxHp:boss.maxHp,x:boss.x,y:boss.y,z:boss.z,yaw:boss.yaw,phase:boss.phase}
+    });
 
 }, 1000/TICK_RATE);
 
+// ─── START ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
