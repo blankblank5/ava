@@ -55,10 +55,25 @@ function getDir(yaw, pitch) {
 }
 
 io.on('connection', (socket) => {
+
+    // Name uniqueness check (called live as user types / before joining)
+    socket.on('checkName', (name) => {
+        const nameLower = (name || '').trim().toLowerCase();
+        if (!nameLower) { socket.emit('nameCheckResult', { taken: false }); return; }
+        const taken = Object.values(players).some(p => p.name.toLowerCase() === nameLower);
+        socket.emit('nameCheckResult', { taken });
+    });
+
     socket.on('joinGame', (data) => {
+        // Server-side double-check name uniqueness
+        const nameLower = (data.name || '').trim().toLowerCase();
+        if (!nameLower) { socket.emit('joinError', { reason: 'Please enter a name!' }); return; }
+        const taken = Object.values(players).some(p => p.name.toLowerCase() === nameLower);
+        if (taken) { socket.emit('joinError', { reason: 'That name is already taken!' }); return; }
+
         const defaultCharges = ELEMENTS[data.element].moves.map(m => m.maxCharges || 1);
         players[socket.id] = {
-            id: socket.id, name: data.name, role: "player", 
+            id: socket.id, name: data.name.trim(), role: "player", 
             ogElement: data.element, 
             element: data.element, unlockedElements: [data.element],
             hp: 100, x: 0, y: 5, z: 0, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: 0,
@@ -270,28 +285,17 @@ setInterval(() => {
             if (pr.isSolid && pr.shape === 'wall') {
                 const dx = p.x - pr.x; 
                 const dz = p.z - pr.z;
-                
                 const cos = Math.cos(pr.yaw);
                 const sin = Math.sin(pr.yaw);
-                
-                // CORRECTED MATRIX MATH TO MATCH GAME DIRECTON AXES
                 let localX = dx * cos - dz * sin;
                 let localZ = -dx * sin - dz * cos;
-
                 if (Math.abs(localX) < 3.2 && Math.abs(localZ) < 1.0 && p.y < pr.y + 4) {
                     let penX = 3.2 - Math.abs(localX);
                     let penZ = 1.0 - Math.abs(localZ);
-                    
-                    if (penX < penZ) {
-                        localX = localX > 0 ? 3.2 : -3.2;
-                    } else {
-                        localZ = localZ > 0 ? 1.0 : -1.0;
-                    }
-
-                    // CORRECTED CONVERSION BACK TO GLOBAL SPACE
+                    if (penX < penZ) { localX = localX > 0 ? 3.2 : -3.2; }
+                    else { localZ = localZ > 0 ? 1.0 : -1.0; }
                     const newDx = localX * cos - localZ * sin;
                     const newDz = -localX * sin - localZ * cos;
-                    
                     p.x = pr.x + newDx;
                     p.z = pr.z + newDz;
                 }
@@ -319,6 +323,8 @@ setInterval(() => {
             if (p.isJailed) { p.x = 20; p.y = 1; p.z = 20; } 
             else { p.x = 0; p.y = 5; p.z = 0; }
         }
+
+        if (p.godMode && p.hp < 100) { p.hp = Math.min(100, p.hp + 0.5); }
     }
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -344,14 +350,10 @@ setInterval(() => {
                     const dx = pr.x - wall.x;
                     const dy = pr.y - wall.y; 
                     const dz = pr.z - wall.z;
-                    
                     const cos = Math.cos(wall.yaw);
                     const sin = Math.sin(wall.yaw);
-                    
-                    // CORRECTED MATRIX MATH FOR SPELLS HITTING THE WALL
                     const localX = dx * cos - dz * sin;
                     const localZ = -dx * sin - dz * cos;
-
                     if (Math.abs(localX) <= 3.2 && Math.abs(localZ) <= 0.7 && Math.abs(dy) <= 2.2) { 
                         wall.hp -= 1;
                         if (wall.hp <= 0) wall.life = 0;
