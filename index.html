@@ -10,7 +10,25 @@
     #start-screen { position: absolute; inset: 0; background: #111111; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
     .el-btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: transform 0.1s; }
     .el-btn:hover { transform: scale(1.05); }
-    
+    .el-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── LOADING SCREEN ── */
+    #loading-screen {
+      display: none; position: absolute; inset: 0; background: #111;
+      z-index: 110; flex-direction: column; align-items: center; justify-content: center; color: white;
+    }
+    #loading-screen.active { display: flex; }
+    #loading-title { font-size: 36px; font-weight: bold; margin-bottom: 8px; letter-spacing: 3px; color: #fff; text-shadow: 0 0 12px #fff; }
+    #loading-subtitle { font-size: 16px; color: #aaa; margin-bottom: 40px; }
+    #loading-bar-wrap { width: 400px; height: 22px; background: #222; border: 2px solid #444; border-radius: 4px; overflow: hidden; }
+    #loading-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #2255ff, #00aaff); transition: width 0.15s ease; }
+    #loading-pct { margin-top: 12px; font-size: 20px; font-weight: bold; color: #fff; }
+    #loading-step { margin-top: 6px; font-size: 13px; color: #888; }
+
+    /* ── NAME VALIDATION ── */
+    #name-error { color: #ff4444; font-size: 14px; margin-top: 6px; height: 18px; }
+    #name-ok    { color: #44ff88; font-size: 14px; margin-top: 6px; height: 18px; }
+
     #admin-login { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.9); z-index:200; flex-direction:column; align-items:center; justify-content:center; color:white; }
     #admin-panel { display:none; position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.9); border:2px solid cyan; padding:15px; color:white; z-index:150; border-radius:8px; width:300px; max-height: 80vh; overflow-y: auto; }
     .admin-btn { width: 100%; margin-bottom: 5px; padding: 8px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; }
@@ -34,7 +52,34 @@
     .compass-name { position: absolute; top: 15px; font-size: 10px; color: white; transform: translateX(-50%); white-space: nowrap; }
 
     #nametags-container { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
-    .nametag { position: absolute; color: white; font-weight: bold; font-size: 14px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; transform: translate(-50%, -100%); display: none; }
+
+    /* ── ABOVE-HEAD HUD ── */
+    .player-hud {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      pointer-events: none;
+    }
+    .hud-name {
+      color: white; font-weight: bold; font-size: 13px;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+      white-space: nowrap;
+    }
+    .hud-element {
+      font-size: 11px; font-weight: bold;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+    .hud-bar-wrap {
+      width: 70px; height: 7px; background: #500; border: 1px solid #222; border-radius: 2px; overflow: hidden;
+    }
+    .hud-bar { height: 100%; background: #ff2222; transition: width 0.15s; }
+    .hud-hp-text {
+      font-size: 10px; color: #fff;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
 
     #chat-wrapper { position: absolute; top: 10px; left: 10px; width: 320px; height: 250px; background: rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 100; border-radius: 5px; border: 1px solid #444; }
     #chat-messages { flex: 1; overflow-y: auto; padding: 10px; color: white; font-size: 14px; text-shadow: 1px 1px 0 #000; display: flex; flex-direction: column; gap: 4px; pointer-events: auto; }
@@ -61,16 +106,28 @@
       </div>
   </div>
 
+  <!-- START SCREEN -->
   <div id="start-screen">
     <h1 style="font-size: 50px; margin-bottom: 10px; color: #fff; text-shadow: 0 0 10px #fff;">ELEMENTAL ARENA</h1>
-    <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="15" style="padding: 15px; font-size: 20px; margin-bottom: 10px; text-align: center; border-radius: 5px; border: none; width: 300px;">
+    <input type="text" id="player-name-input" placeholder="Enter your name..." maxlength="15"
+      style="padding: 15px; font-size: 20px; margin-bottom: 4px; text-align: center; border-radius: 5px; border: 2px solid #555; background:#222; color:white; width: 300px; outline:none;">
+    <div id="name-error"></div>
     <h2>Select Your Element</h2>
     <div style="display: flex; gap: 15px;">
-      <button class="el-btn" id="btn-air" style="background: #ffffff; color: black;">💨AIR</button>
+      <button class="el-btn" id="btn-air"   style="background: #ffffff; color: black;">💨AIR</button>
       <button class="el-btn" id="btn-earth" style="background: #8b4513; color: white;">🌎EARTH</button>
-      <button class="el-btn" id="btn-fire" style="background: #ff4500; color: white;">🔥FIRE</button>
+      <button class="el-btn" id="btn-fire"  style="background: #ff4500; color: white;">🔥FIRE</button>
       <button class="el-btn" id="btn-water" style="background: #0088ff; color: white;">💦WATER</button>
     </div>
+  </div>
+
+  <!-- LOADING SCREEN -->
+  <div id="loading-screen">
+    <div id="loading-title">ELEMENTAL ARENA</div>
+    <div id="loading-subtitle">Entering the arena...</div>
+    <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+    <div id="loading-pct">0%</div>
+    <div id="loading-step">Connecting to server...</div>
   </div>
 
   <div id="admin-login">
@@ -82,26 +139,21 @@
   
   <div id="admin-panel">
     <h3 id="panel-title" style="margin-top:0; color:cyan; text-align:center;">Admin Panel</h3>
-    
     <div class="tab-container">
         <button class="tab-btn active" onclick="switchTab('self')" id="btn-tab-self">Self</button>
         <button class="tab-btn" onclick="switchTab('give')" id="btn-tab-give">Give</button>
         <button class="tab-btn" onclick="switchTab('server')" id="btn-tab-server">Server</button>
     </div>
-
     <div id="tab-self" class="tab-content active">
         <button class="admin-btn" onclick="sendAdminAction('godmode', window.myId)" style="background:#88aa00;">Toggle Godmode (Auto-Heal)</button>
         <button class="admin-btn" onclick="sendAdminAction('nocooldown', window.myId)" style="background:#bb8800;">Toggle No Cooldowns</button>
         <button class="admin-btn" onclick="sendAdminAction('equipLightning', window.myId)" style="background:#0055ff; color:white;">Equip Lightning</button>
     </div>
-
     <div id="tab-give" class="tab-content">
         <select id="give-player-list" style="width:100%; padding:8px; margin-bottom:10px; font-weight:bold;"></select>
-        
         <button class="admin-btn" onclick="sendAdminAction('heal', document.getElementById('give-player-list').value)" style="background:#00aa00; color:white;">Heal Player</button>
         <button class="admin-btn" onclick="sendAdminAction('godmode', document.getElementById('give-player-list').value)" style="background:#88aa00;">Toggle God Mode</button>
         <button class="admin-btn" onclick="sendAdminAction('nocooldown', document.getElementById('give-player-list').value)" style="background:#bb8800;">Toggle No Cooldowns</button>
-        
         <hr style="border-color:#444;">
         <select id="power-list" style="width:100%; padding:5px; margin-bottom:5px;">
             <option value="AIR">Air</option><option value="EARTH">Earth</option>
@@ -109,16 +161,13 @@
         </select>
         <button class="admin-btn" onclick="givePower()" style="background: #444; color:white;">Give Standard Element</button>
         <button class="admin-btn" onclick="sendAdminAction('giveAll', document.getElementById('give-player-list').value)" style="background:#2288cc; color:white;">Give ALL Elements</button>
-        
         <div id="owner-give-section" style="display:none; margin-top:10px;">
             <h4 style="margin:5px 0; color:#ff4444;">Owner Actions</h4>
             <button class="admin-btn" onclick="sendAdminAction('removeAllPowers', document.getElementById('give-player-list').value)" style="background:#ff3333; color:white;">Remove All Powers (Revert)</button>
         </div>
     </div>
-
     <div id="tab-server" class="tab-content">
         <select id="server-player-list" style="width:100%; padding:8px; margin-bottom:10px; font-weight:bold;"></select>
-        
         <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
             <button class="admin-btn" onclick="sendAdminAction('jail', document.getElementById('server-player-list').value)" style="flex:1;">Jail</button>
             <button class="admin-btn" onclick="sendAdminAction('freeze', document.getElementById('server-player-list').value)" style="flex:1;">Freeze</button>
@@ -131,13 +180,11 @@
             <button class="admin-btn" onclick="sendAdminAction('tp', document.getElementById('server-player-list').value)" style="flex:1;">TP To</button>
             <button class="admin-btn" onclick="sendAdminAction('bring', document.getElementById('server-player-list').value)" style="flex:1;">Bring</button>
         </div>
-        
         <div id="owner-server-section" style="display:none;">
             <hr style="border-color:#444;">
             <h4 style="margin:5px 0; color:#ff4444;">Owner Actions</h4>
             <button class="admin-btn" onclick="sendAdminAction('giveAdmin', document.getElementById('server-player-list').value)" style="background:#aa22aa; color:white;">Give Admin Role</button>
             <button class="admin-btn" onclick="sendAdminAction('stripAdmin', document.getElementById('server-player-list').value)" style="background:#ff3333; color:white;">Strip Admin Role & Powers</button>
-            
             <hr style="border-color:#444;">
             <button class="admin-btn" onclick="sendAdminAction('nuke', null)" style="background:darkred; color:white; font-size:16px; padding:15px;">NUKE SERVER</button>
         </div>
@@ -149,8 +196,11 @@
   <div style="position: absolute; bottom: 20px; left: 20px; color: white; text-shadow: 2px 2px 0 #000; pointer-events: none; user-select: none; display: none;" id="game-ui">
     <div style="margin-bottom: 10px;">
       <h2 id="display-name" style="margin: 0; font-size: 20px; color: #ddd;">Player</h2>
-      <div style="width: 250px; height: 15px; background: #500; margin-top: 5px; border: 2px solid #222;">
-        <div id="hp-bar" style="width: 100%; height: 100%; background: #ff2222; transition: width 0.2s;"></div>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:5px;">
+        <div style="width: 250px; height: 15px; background: #500; border: 2px solid #222; flex-shrink:0;">
+          <div id="hp-bar" style="width: 100%; height: 100%; background: #ff2222; transition: width 0.2s;"></div>
+        </div>
+        <span id="hp-counter" style="font-size:14px; font-weight:bold; color:#fff; text-shadow:1px 1px 0 #000; white-space:nowrap;">100/100</span>
       </div>
     </div>
     <h2 id="el-name" style="margin: 0; font-size: 30px;">AIR</h2>
@@ -173,6 +223,11 @@
     let myElement = "AIR";
     window.sessionRole = "player"; 
 
+    // ── Element colors for above-head HUD ──
+    const ELEMENT_COLORS = {
+      AIR: '#ccccff', EARTH: '#cc8833', FIRE: '#ff6622', WATER: '#33aaff', LIGHTNING: '#00ffff'
+    };
+
     const ELEMENTS_UI = {
         AIR: { color: 0xffffff, moves: [{ name: 'Air Blast' }, { name: 'Wind Blade' }, { name: 'Air Dash', maxCharges: 3, cd: 4000 }, { name: 'Hurricane', cd: 8000 }] },
         EARTH: { color: 0x8b4513, moves: [{ name: 'Rock Throw' }, { name: 'Stone Grasp', cd: 4000 }, { name: 'Earth Wall', cd: 5000 }, { name: 'Meteor', cd: 10000 }] },
@@ -182,7 +237,7 @@
     };
 
     const inputs = { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, yaw: 0, pitch: 0 };
-    const playerMeshes = {}; const projectileMeshes = {}; const nametagElements = {};
+    const playerMeshes = {}; const projectileMeshes = {}; const playerHUDs = {};
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb); scene.fog = new THREE.Fog(0x87ceeb, 20, 150);
@@ -200,17 +255,14 @@
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
     const grid = new THREE.GridHelper(2000, 500, 0x000000, 0x225522); grid.position.y = 0.05; scene.add(grid);
 
-    // --- FIXED JAIL BARS ---
     const jailGroup = new THREE.Group();
     jailGroup.position.set(20, 0.05, 20);
     const plateGeo = new THREE.BoxGeometry(12, 0.5, 12); 
     const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
     jailGroup.add(new THREE.Mesh(plateGeo, blackMat)); 
     let roof = new THREE.Mesh(plateGeo, blackMat); roof.position.y = 10; jailGroup.add(roof);
-    
     const barGeo = new THREE.CylinderGeometry(0.12, 0.12, 10); 
     const grayMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 }); 
-    
     for(let x = -5.5; x <= 5.5; x += 1.5) { 
         let b1 = new THREE.Mesh(barGeo, grayMat); b1.position.set(x, 5, -5.5); jailGroup.add(b1);
         let b2 = new THREE.Mesh(barGeo, grayMat); b2.position.set(x, 5, 5.5); jailGroup.add(b2);
@@ -221,22 +273,130 @@
     }
     scene.add(jailGroup);
 
+    // ── NAME VALIDATION ──
+    let nameCheckTimeout = null;
+    let nameIsValid = false;
+    const nameInput = document.getElementById('player-name-input');
+    const nameError = document.getElementById('name-error');
+
+    nameInput.addEventListener('input', () => {
+      clearTimeout(nameCheckTimeout);
+      const val = nameInput.value.trim();
+      nameError.style.color = '#aaa';
+      nameError.textContent = val.length ? 'Checking...' : '';
+      nameIsValid = false;
+      if (!val.length) { nameError.textContent = ''; return; }
+      nameCheckTimeout = setTimeout(() => {
+        socket.emit('checkName', val);
+      }, 400);
+    });
+
+    socket.on('nameCheckResult', (data) => {
+      const val = nameInput.value.trim();
+      if (!val) return;
+      if (data.taken) {
+        nameError.style.color = '#ff4444';
+        nameError.textContent = '✗ Name already taken!';
+        nameIsValid = false;
+      } else {
+        nameError.style.color = '#44ff88';
+        nameError.textContent = '✓ Name available!';
+        nameIsValid = true;
+      }
+    });
+
+    socket.on('joinError', (data) => {
+      // Hide loading screen, show error on start screen
+      document.getElementById('loading-screen').classList.remove('active');
+      document.getElementById('start-screen').style.display = 'flex';
+      nameError.style.color = '#ff4444';
+      nameError.textContent = '✗ ' + data.reason;
+      nameIsValid = false;
+      // Re-enable buttons
+      document.querySelectorAll('.el-btn').forEach(b => b.disabled = false);
+    });
+
+    // ── LOADING SCREEN ──
+    function showLoadingScreen(elementKey) {
+      document.getElementById('start-screen').style.display = 'none';
+      const ls = document.getElementById('loading-screen');
+      ls.classList.add('active');
+
+      const steps = [
+        { label: 'Connecting to server...', pct: 10 },
+        { label: 'Loading world geometry...', pct: 25 },
+        { label: 'Initializing physics engine...', pct: 40 },
+        { label: 'Loading element assets...', pct: 58 },
+        { label: 'Preparing your abilities...', pct: 72 },
+        { label: 'Syncing with other players...', pct: 85 },
+        { label: 'Entering the arena...', pct: 95 },
+      ];
+
+      const bar = document.getElementById('loading-bar');
+      const pct = document.getElementById('loading-pct');
+      const stepEl = document.getElementById('loading-step');
+
+      let stepIdx = 0;
+      let currentPct = 0;
+
+      function advanceStep() {
+        if (stepIdx >= steps.length) return;
+        const step = steps[stepIdx];
+        stepEl.textContent = step.label;
+        animateTo(step.pct, () => {
+          stepIdx++;
+          if (stepIdx < steps.length) {
+            setTimeout(advanceStep, 180 + Math.random() * 220);
+          }
+          // At 95% we wait for joinSuccess to push to 100
+        });
+      }
+
+      function animateTo(target, cb) {
+        const interval = setInterval(() => {
+          currentPct = Math.min(currentPct + 1, target);
+          bar.style.width = currentPct + '%';
+          pct.textContent = currentPct + '%';
+          if (currentPct >= target) { clearInterval(interval); if (cb) cb(); }
+        }, 18);
+      }
+
+      advanceStep();
+
+      // Store animateTo so joinSuccess can finish it
+      window._loadingAnimateTo = animateTo;
+    }
+
     window.initGame = (elementKey) => {
-      const playerName = document.getElementById('player-name-input').value.trim() || "Player";
+      const playerName = nameInput.value.trim();
+      if (!playerName) { nameError.style.color='#ff4444'; nameError.textContent='✗ Please enter a name!'; return; }
+      if (!nameIsValid) { nameError.style.color='#ff4444'; nameError.textContent='✗ Fix your name before joining!'; return; }
+
+      // Disable buttons to prevent double-click
+      document.querySelectorAll('.el-btn').forEach(b => b.disabled = true);
+
+      showLoadingScreen(elementKey);
       socket.emit('joinGame', { name: playerName, element: elementKey });
     };
 
     socket.on('joinSuccess', (data) => {
         window.myId = data.id;
-        document.getElementById('start-screen').style.display = 'none';
-        document.getElementById('game-ui').style.display = 'block';
-        document.getElementById('moves-container').style.display = 'flex';
-        document.getElementById('compass-container').style.display = 'block';
-        document.getElementById('chat-wrapper').style.display = 'flex';
-        document.getElementById('chat-toggle-btn').style.display = 'block';
-        document.getElementById('display-name').innerText = document.getElementById('player-name-input').value.trim() || "Player";
-        isGameStarted = true; 
-        document.body.requestPointerLock();
+        // Finish loading bar to 100%
+        const stepEl = document.getElementById('loading-step');
+        stepEl.textContent = 'Ready!';
+        window._loadingAnimateTo(100, () => {
+          setTimeout(() => {
+            document.getElementById('loading-screen').classList.remove('active');
+            document.getElementById('game-ui').style.display = 'block';
+            document.getElementById('moves-container').style.display = 'flex';
+            document.getElementById('compass-container').style.display = 'block';
+            document.getElementById('chat-wrapper').style.display = 'flex';
+            document.getElementById('chat-toggle-btn').style.display = 'block';
+            document.getElementById('display-name').innerText = nameInput.value.trim() || "Player";
+            isGameStarted = true; 
+            document.body.requestPointerLock();
+          }, 300);
+        });
     });
 
     socket.on('serverNuked', (data) => {
@@ -264,12 +424,8 @@
 
     const chatInput = document.getElementById('chat-input');
     const sendChat = () => {
-        if(chatInput.value.trim() !== '') { 
-            socket.emit('chatMessage', chatInput.value); 
-            chatInput.value = ''; 
-        }
+        if(chatInput.value.trim() !== '') { socket.emit('chatMessage', chatInput.value); chatInput.value = ''; }
     };
-    
     document.getElementById('chat-send-btn').addEventListener('click', sendChat);
 
     socket.on('chatMessage', (data) => {
@@ -294,7 +450,6 @@
     document.addEventListener('click', (e) => {
       if (!isGameStarted) return;
       if (e.target.id === 'chat-toggle-btn' || e.target.id === 'chat-input' || e.target.id === 'chat-send-btn' || e.target.closest('#chat-wrapper') || e.target.classList.contains('admin-btn')) return;
-      
       if (document.pointerLockElement !== document.body && document.getElementById('admin-panel').style.display !== 'block' && document.getElementById('admin-login').style.display !== 'flex') {
           document.body.requestPointerLock();
       }
@@ -304,9 +459,7 @@
     
     document.addEventListener('keydown', (e) => {
       if (!isGameStarted) return;
-      
       if (document.activeElement === chatInput) return;
-
       if (e.key === 'Enter' || e.key === '/') {
           e.preventDefault();
           document.exitPointerLock();
@@ -315,7 +468,6 @@
           chatInput.focus();
           return;
       }
-      
       if (e.code === 'KeyM') {
          const login = document.getElementById('admin-login'); const panel = document.getElementById('admin-panel');
          if (window.sessionRole === 'admin' || window.sessionRole === 'owner') {
@@ -326,17 +478,14 @@
              else { login.style.display = 'none'; document.body.requestPointerLock(); }
          } return;
       }
-
       if (document.pointerLockElement === document.body) {
           if (e.code === 'Digit1') socket.emit('switchElement', 'AIR');
           if (e.code === 'Digit2') socket.emit('switchElement', 'EARTH');
           if (e.code === 'Digit3') socket.emit('switchElement', 'FIRE');
           if (e.code === 'Digit4') socket.emit('switchElement', 'WATER');
-
           if (e.code === 'KeyQ') socket.emit('useMove', 1);
           if (e.code === 'KeyE') socket.emit('useMove', 2);
           if (e.code === 'KeyR') socket.emit('useMove', 3);
-          
           if (e.code === 'KeyW' || e.code === 'ArrowUp') inputs.forward = true;
           if (e.code === 'KeyS' || e.code === 'ArrowDown') inputs.backward = true;
           if (e.code === 'KeyA' || e.code === 'ArrowLeft') inputs.left = true;
@@ -375,7 +524,6 @@
       else if (data.shape === 'wall') { geo = new THREE.BoxGeometry(6, 4, 1); mat.transparent = true; mat.opacity = 0.9; } 
       else if (data.shape === 'cone') { geo = new THREE.ConeGeometry(s * 3.5, s * 10, 8); geo.rotateX(Math.PI); }
       else geo = new THREE.SphereGeometry(s, 8, 8); 
-      
       const mesh = new THREE.Mesh(geo, mat); scene.add(mesh); return mesh;
     }
 
@@ -385,27 +533,23 @@
             document.getElementById('admin-login').style.display='none'; 
             document.getElementById('admin-panel').style.display='block'; 
             window.sessionRole = pass === '1FOREST1' ? 'admin' : 'owner'; 
-            
             document.getElementById('panel-title').innerText = window.sessionRole === 'owner' ? "Owner Panel" : "Admin Panel";
             if(window.sessionRole === 'owner') {
                 document.getElementById('owner-give-section').style.display = 'block';
                 document.getElementById('owner-server-section').style.display = 'block';
             }
-            
             socket.emit('setRole', window.sessionRole);
             document.getElementById('admin-pass').value = ""; 
         } else { alert("Incorrect Password!"); }
     };
     
     window.closeAdminLogin = () => { document.getElementById('admin-login').style.display='none'; document.body.requestPointerLock(); };
-    
     window.switchTab = (tabId) => {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         document.getElementById('tab-' + tabId).classList.add('active');
         document.getElementById('btn-tab-' + tabId).classList.add('active');
     };
-
     window.sendAdminAction = (action, targetId) => { socket.emit('adminCommand', { action: action, targetId: targetId }); };
     window.givePower = () => { socket.emit('adminCommand', { action: 'givePower', targetId: document.getElementById('give-player-list').value, value: document.getElementById('power-list').value }); };
 
@@ -425,7 +569,6 @@
           const giveSelect = document.getElementById('give-player-list');
           const serverSelect = document.getElementById('server-player-list');
           const currentGive = giveSelect.value; const currentServer = serverSelect.value;
-          
           giveSelect.innerHTML = ''; serverSelect.innerHTML = '';
           for (const id in state.players) {
               const opt1 = document.createElement('option'); const opt2 = document.createElement('option');
@@ -443,7 +586,11 @@
         if (id === window.myId) {
             camera.position.set(p.x, p.y + 1.6, p.z);
             camera.rotation.order = "YXZ"; camera.rotation.set(p.pitch, p.yaw, 0);
-            document.getElementById('hp-bar').style.width = (p.hp / 100 * 100) + '%';
+
+            // Own HP bar + counter
+            const hpPct = Math.max(0, p.hp / 100 * 100);
+            document.getElementById('hp-bar').style.width = hpPct + '%';
+            document.getElementById('hp-counter').textContent = Math.max(0, Math.ceil(p.hp)) + '/100';
             
             if (myElement !== p.element) {
                 myElement = p.element; const elInfo = ELEMENTS_UI[p.element];
@@ -458,56 +605,65 @@
                 else document.getElementById(`cd${i}`).style.height = '0%';
             }
         } else {
+            // Create mesh + above-head HUD
             if (!playerMeshes[id]) {
                 const group = new THREE.Group(); 
-                
-                // --- UPDATED CHARACTER MODEL ---
-                const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa }); // Skin tone
-                const shirtMat = new THREE.MeshStandardMaterial({ color: 0x2255ff }); // Blue shirt
-                const pantsMat = new THREE.MeshStandardMaterial({ color: 0x333333 }); // Dark pants
-                
-                // Torso
-                const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), shirtMat); 
-                torso.position.y = 0.6;
-                
-                // Head
-                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), skinMat); 
-                head.position.y = 1.5;
-                
-                // Arms
-                const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat);
-                leftArm.position.set(-0.55, 0.7, 0);
-                const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat);
-                rightArm.position.set(0.55, 0.7, 0);
-                
-                // Legs
-                const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat);
-                leftLeg.position.set(-0.2, -0.6, 0);
-                const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat);
-                rightLeg.position.set(0.2, -0.6, 0);
-                
-                torso.add(leftLeg, rightLeg); // Attach legs to torso for easy positioning
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa });
+                const shirtMat = new THREE.MeshStandardMaterial({ color: 0x2255ff });
+                const pantsMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), shirtMat); torso.position.y = 0.6;
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), skinMat); head.position.y = 1.5;
+                const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat); leftArm.position.set(-0.55, 0.7, 0);
+                const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat); rightArm.position.set(0.55, 0.7, 0);
+                const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat); leftLeg.position.set(-0.2, -0.6, 0);
+                const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat); rightLeg.position.set(0.2, -0.6, 0);
+                torso.add(leftLeg, rightLeg);
                 group.add(torso, head, leftArm, rightArm); 
-                // --------------------------------
-                
                 scene.add(group); playerMeshes[id] = group;
-                
-                const tag = document.createElement('div'); tag.className = 'nametag'; tag.innerText = p.name;
-                document.getElementById('nametags-container').appendChild(tag); nametagElements[id] = tag;
-            }
-            playerMeshes[id].position.set(p.x, p.y, p.z); playerMeshes[id].rotation.y = p.yaw; 
 
-            tempV.set(p.x, p.y + 2.2, p.z); tempV.project(camera);
+                // Build above-head HUD div
+                const hud = document.createElement('div');
+                hud.className = 'player-hud';
+                hud.innerHTML = `
+                  <div class="hud-name">${p.name}</div>
+                  <div class="hud-element" style="color:${ELEMENT_COLORS[p.element] || '#fff'}">${p.element}</div>
+                  <div class="hud-bar-wrap"><div class="hud-bar" style="width:100%"></div></div>
+                  <div class="hud-hp-text">${Math.ceil(p.hp)}/100</div>
+                `;
+                document.getElementById('nametags-container').appendChild(hud);
+                playerHUDs[id] = hud;
+            }
+
+            playerMeshes[id].position.set(p.x, p.y, p.z);
+            playerMeshes[id].rotation.y = p.yaw; 
+
+            // Update HUD values
+            const hud = playerHUDs[id];
+            if (hud) {
+              const elDiv = hud.querySelector('.hud-element');
+              const bar = hud.querySelector('.hud-bar');
+              const hpText = hud.querySelector('.hud-hp-text');
+              if (elDiv) { elDiv.textContent = p.element; elDiv.style.color = ELEMENT_COLORS[p.element] || '#fff'; }
+              if (bar) bar.style.width = Math.max(0, p.hp) + '%';
+              if (hpText) hpText.textContent = Math.max(0, Math.ceil(p.hp)) + '/100';
+            }
+
+            // Project world pos to screen
+            tempV.set(p.x, p.y + 2.5, p.z); tempV.project(camera);
             if (tempV.z < 1) { 
-                nametagElements[id].style.display = 'block';
-                nametagElements[id].style.left = `${(tempV.x * 0.5 + 0.5) * window.innerWidth}px`;
-                nametagElements[id].style.top = `${(-(tempV.y * 0.5) + 0.5) * window.innerHeight}px`;
-            } else { nametagElements[id].style.display = 'none'; }
+                hud.style.display = 'flex';
+                hud.style.left = `${(tempV.x * 0.5 + 0.5) * window.innerWidth}px`;
+                hud.style.top = `${(-(tempV.y * 0.5) + 0.5) * window.innerHeight}px`;
+            } else { hud.style.display = 'none'; }
         }
       }
 
+      // Clean up disconnected players
       for (const id in playerMeshes) { 
-          if (!state.players[id]) { scene.remove(playerMeshes[id]); delete playerMeshes[id]; if (nametagElements[id]) { nametagElements[id].remove(); delete nametagElements[id]; } } 
+          if (!state.players[id]) { 
+            scene.remove(playerMeshes[id]); delete playerMeshes[id]; 
+            if (playerHUDs[id]) { playerHUDs[id].remove(); delete playerHUDs[id]; } 
+          } 
       }
 
       const activeProjIds = new Set(state.projectiles.map(pr => pr.id));
