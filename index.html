@@ -275,17 +275,17 @@
 
     // ── NAME VALIDATION ──
     let nameCheckTimeout = null;
-    let nameIsValid = false;
+    let nameIsTaken = false;
     const nameInput = document.getElementById('player-name-input');
     const nameError = document.getElementById('name-error');
 
     nameInput.addEventListener('input', () => {
       clearTimeout(nameCheckTimeout);
       const val = nameInput.value.trim();
-      nameError.style.color = '#aaa';
-      nameError.textContent = val.length ? 'Checking...' : '';
-      nameIsValid = false;
+      nameIsTaken = false;
       if (!val.length) { nameError.textContent = ''; return; }
+      nameError.style.color = '#aaa';
+      nameError.textContent = 'Checking...';
       nameCheckTimeout = setTimeout(() => {
         socket.emit('checkName', val);
       }, 400);
@@ -295,24 +295,22 @@
       const val = nameInput.value.trim();
       if (!val) return;
       if (data.taken) {
+        nameIsTaken = true;
         nameError.style.color = '#ff4444';
         nameError.textContent = '✗ Name already taken!';
-        nameIsValid = false;
       } else {
+        nameIsTaken = false;
         nameError.style.color = '#44ff88';
         nameError.textContent = '✓ Name available!';
-        nameIsValid = true;
       }
     });
 
     socket.on('joinError', (data) => {
-      // Hide loading screen, show error on start screen
       document.getElementById('loading-screen').classList.remove('active');
       document.getElementById('start-screen').style.display = 'flex';
       nameError.style.color = '#ff4444';
       nameError.textContent = '✗ ' + data.reason;
-      nameIsValid = false;
-      // Re-enable buttons
+      nameIsTaken = true;
       document.querySelectorAll('.el-btn').forEach(b => b.disabled = false);
     });
 
@@ -370,7 +368,7 @@
     window.initGame = (elementKey) => {
       const playerName = nameInput.value.trim();
       if (!playerName) { nameError.style.color='#ff4444'; nameError.textContent='✗ Please enter a name!'; return; }
-      if (!nameIsValid) { nameError.style.color='#ff4444'; nameError.textContent='✗ Fix your name before joining!'; return; }
+      if (nameIsTaken) { nameError.style.color='#ff4444'; nameError.textContent='✗ Name already taken!'; return; }
 
       // Disable buttons to prevent double-click
       document.querySelectorAll('.el-btn').forEach(b => b.disabled = true);
