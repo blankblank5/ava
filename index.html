@@ -529,7 +529,7 @@
         const pass = document.getElementById('admin-pass').value;
         if (pass === '1FOREST1' || pass === 'Caleb1') {
             document.getElementById('admin-login').style.display='none'; 
-            document.getElementById('admin-panel').style.display='block'; 
+            document.getElementById('admin-panel').style.display='block';document.getElementById('admin-panel').style.display='block'; 
             window.sessionRole = pass === '1FOREST1' ? 'admin' : 'owner'; 
             document.getElementById('panel-title').innerText = window.sessionRole === 'owner' ? "Owner Panel" : "Admin Panel";
             if(window.sessionRole === 'owner') {
@@ -553,11 +553,14 @@
 
     socket.on('death', () => { alert("You Died! Respawning..."); });
 
+    // --- RENDER & LERP VARIABLES ---
     const tempV = new THREE.Vector3(); 
-    socket.on('gameState', (state) => {const targetCameraPos = new THREE.Vector3();
+    const targetCameraPos = new THREE.Vector3();
     const trails = [];
-    const sharedTrailGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15); // The trail pixel
+    const sharedTrailGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15); 
+    const nametagElements = {};
 
+    // --- GAME STATE LISTENER ---
     socket.on('gameState', (state) => {
       if (!isGameStarted) return;
       const now = Date.now();
@@ -587,7 +590,6 @@
       for (const id in state.players) {
         const p = state.players[id];
         if (id === window.myId) {
-            // Update target camera pos for smooth lerping
             targetCameraPos.set(p.x, p.y + 1.6, p.z);
             camera.rotation.order = "YXZ"; camera.rotation.set(p.pitch, p.yaw, 0);
             document.getElementById('hp-bar').style.width = (p.hp / 100 * 100) + '%';
@@ -608,7 +610,6 @@
             if (!playerMeshes[id]) {
                 const group = new THREE.Group(); 
                 
-                // --- CHARACTER MODEL ---
                 const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa }); 
                 const shirtMat = new THREE.MeshStandardMaterial({ color: 0x2255ff }); 
                 const pantsMat = new THREE.MeshStandardMaterial({ color: 0x333333 }); 
@@ -629,7 +630,6 @@
                 torso.add(leftLeg, rightLeg); 
                 group.add(torso, head, leftArm, rightArm); 
                 
-                // Set initial position and target property for lerp
                 group.position.set(p.x, p.y + 1, p.z);
                 group.userData.targetPos = new THREE.Vector3(p.x, p.y + 1, p.z);
                 
@@ -639,10 +639,8 @@
                 document.getElementById('nametags-container').appendChild(tag); nametagElements[id] = tag;
             }
             
-            // Update target position for smooth movement
             playerMeshes[id].userData.targetPos.set(p.x, p.y + 1, p.z);
             
-            // Nametags & Compass logic
             tempV.set(p.x, p.y + 2.5, p.z); tempV.project(camera);
             if (tempV.z < 1) {
                 const nx = (tempV.x * .5 + .5) * window.innerWidth; const ny = (tempV.y * -.5 + .5) * window.innerHeight;
@@ -651,6 +649,7 @@
         }
       }
 
+      // Cleanup disconnected players
       for (const id in playerMeshes) {
           if (!state.players[id]) { 
               scene.remove(playerMeshes[id]); delete playerMeshes[id];
@@ -673,6 +672,7 @@
           projectileMeshes[pr.id].userData.targetPos.set(pr.x, pr.y, pr.z);
       }
 
+      // Cleanup destroyed projectiles
       for (const id in projectileMeshes) {
           if (!projIds.has(id)) { 
               scene.remove(projectileMeshes[id]); delete projectileMeshes[id]; 
@@ -684,24 +684,20 @@
     function animate() {
         requestAnimationFrame(animate);
         
-        // 1. Send Inputs
         if (isGameStarted) socket.emit('input', inputs);
         
-        const lerpSpeed = 0.35; // Adjust for smoother/snappier movement
+        const lerpSpeed = 0.35; 
 
-        // 2. Smooth Camera
         if (isGameStarted && window.myId) {
             camera.position.lerp(targetCameraPos, lerpSpeed);
         }
 
-        // 3. Smooth Enemy Players
         for (const id in playerMeshes) {
             if (playerMeshes[id].userData.targetPos) {
                 playerMeshes[id].position.lerp(playerMeshes[id].userData.targetPos, lerpSpeed);
             }
         }
 
-        // 4. Smooth Projectiles & Spawning Trails
         for (const id in projectileMeshes) {
             const proj = projectileMeshes[id];
             if (proj.userData.targetPos) {
@@ -710,10 +706,9 @@
             
             const shape = proj.userData.shape;
             if (shape !== 'wall' && shape !== 'flat' && shape !== 'spike' && shape !== 'lightning') {
-                // Spin non-static projectiles
                 proj.rotation.x += 0.05; proj.rotation.y += 0.05;
                 
-                // Spawn Trail Pixels randomly
+                // Spawn Trail Particles
                 if (Math.random() > 0.4) {
                     const trailMat = new THREE.MeshBasicMaterial({ 
                         color: proj.userData.color, 
@@ -723,7 +718,6 @@
                     const pixel = new THREE.Mesh(sharedTrailGeo, trailMat);
                     pixel.position.copy(proj.position);
                     
-                    // Add slight random spread
                     pixel.position.x += (Math.random() - 0.5) * 0.5;
                     pixel.position.y += (Math.random() - 0.5) * 0.5;
                     pixel.position.z += (Math.random() - 0.5) * 0.5;
@@ -734,10 +728,10 @@
             }
         }
 
-        // 5. Update Particle Trails
+        // Manage Trail Lifespans
         for (let i = trails.length - 1; i >= 0; i--) {
             const t = trails[i];
-            t.life -= 0.04; // Trail fade speed
+            t.life -= 0.04; 
             
             if (t.life <= 0) {
                 scene.remove(t.mesh);
@@ -745,7 +739,7 @@
                 trails.splice(i, 1);
             } else {
                 t.mesh.material.opacity = t.life;
-                t.mesh.scale.setScalar(t.life); // Shrink over time
+                t.mesh.scale.setScalar(t.life); 
             }
         }
 
