@@ -554,6 +554,10 @@
     socket.on('death', () => { alert("You Died! Respawning..."); });
 
     const tempV = new THREE.Vector3(); 
+    socket.on('gameState', (state) => {const targetCameraPos = new THREE.Vector3();
+    const trails = [];
+    const sharedTrailGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15); // The trail pixel
+
     socket.on('gameState', (state) => {
       if (!isGameStarted) return;
       const now = Date.now();
@@ -567,6 +571,7 @@
           const giveSelect = document.getElementById('give-player-list');
           const serverSelect = document.getElementById('server-player-list');
           const currentGive = giveSelect.value; const currentServer = serverSelect.value;
+          
           giveSelect.innerHTML = ''; serverSelect.innerHTML = '';
           for (const id in state.players) {
               const opt1 = document.createElement('option'); const opt2 = document.createElement('option');
@@ -582,13 +587,10 @@
       for (const id in state.players) {
         const p = state.players[id];
         if (id === window.myId) {
-            camera.position.set(p.x, p.y + 1.6, p.z);
+            // Update target camera pos for smooth lerping
+            targetCameraPos.set(p.x, p.y + 1.6, p.z);
             camera.rotation.order = "YXZ"; camera.rotation.set(p.pitch, p.yaw, 0);
-
-            // Own HP bar + counter
-            const hpPct = Math.max(0, p.hp / 100 * 100);
-            document.getElementById('hp-bar').style.width = hpPct + '%';
-            document.getElementById('hp-counter').textContent = Math.max(0, Math.ceil(p.hp)) + '/100';
+            document.getElementById('hp-bar').style.width = (p.hp / 100 * 100) + '%';
             
             if (myElement !== p.element) {
                 myElement = p.element; const elInfo = ELEMENTS_UI[p.element];
@@ -603,90 +605,160 @@
                 else document.getElementById(`cd${i}`).style.height = '0%';
             }
         } else {
-            // Create mesh + above-head HUD
             if (!playerMeshes[id]) {
                 const group = new THREE.Group(); 
-                const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa });
-                const shirtMat = new THREE.MeshStandardMaterial({ color: 0x2255ff });
-                const pantsMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-                const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), shirtMat); torso.position.y = 0.6;
-                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), skinMat); head.position.y = 1.5;
-                const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat); leftArm.position.set(-0.55, 0.7, 0);
-                const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat); rightArm.position.set(0.55, 0.7, 0);
-                const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat); leftLeg.position.set(-0.2, -0.6, 0);
-                const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat); rightLeg.position.set(0.2, -0.6, 0);
-                torso.add(leftLeg, rightLeg);
+                
+                // --- CHARACTER MODEL ---
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa }); 
+                const shirtMat = new THREE.MeshStandardMaterial({ color: 0x2255ff }); 
+                const pantsMat = new THREE.MeshStandardMaterial({ color: 0x333333 }); 
+                
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), shirtMat); 
+                torso.position.y = 0.6;
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), skinMat); 
+                head.position.y = 1.5;
+                const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat);
+                leftArm.position.set(-0.55, 0.7, 0);
+                const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.0, 0.3), skinMat);
+                rightArm.position.set(0.55, 0.7, 0);
+                const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat);
+                leftLeg.position.set(-0.2, -0.6, 0);
+                const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), pantsMat);
+                rightLeg.position.set(0.2, -0.6, 0);
+                
+                torso.add(leftLeg, rightLeg); 
                 group.add(torso, head, leftArm, rightArm); 
+                
+                // Set initial position and target property for lerp
+                group.position.set(p.x, p.y + 1, p.z);
+                group.userData.targetPos = new THREE.Vector3(p.x, p.y + 1, p.z);
+                
                 scene.add(group); playerMeshes[id] = group;
-
-                // Build above-head HUD div
-                const hud = document.createElement('div');
-                hud.className = 'player-hud';
-                hud.innerHTML = `
-                  <div class="hud-name">${p.name}</div>
-                  <div class="hud-element" style="color:${ELEMENT_COLORS[p.element] || '#fff'}">${p.element}</div>
-                  <div class="hud-bar-wrap"><div class="hud-bar" style="width:100%"></div></div>
-                  <div class="hud-hp-text">${Math.ceil(p.hp)}/100</div>
-                `;
-                document.getElementById('nametags-container').appendChild(hud);
-                playerHUDs[id] = hud;
+                
+                const tag = document.createElement('div'); tag.className = 'nametag'; tag.innerText = p.name;
+                document.getElementById('nametags-container').appendChild(tag); nametagElements[id] = tag;
             }
-
-            playerMeshes[id].position.set(p.x, p.y, p.z);
-            playerMeshes[id].rotation.y = p.yaw; 
-
-            // Update HUD values
-            const hud = playerHUDs[id];
-            if (hud) {
-              const elDiv = hud.querySelector('.hud-element');
-              const bar = hud.querySelector('.hud-bar');
-              const hpText = hud.querySelector('.hud-hp-text');
-              if (elDiv) { elDiv.textContent = p.element; elDiv.style.color = ELEMENT_COLORS[p.element] || '#fff'; }
-              if (bar) bar.style.width = Math.max(0, p.hp) + '%';
-              if (hpText) hpText.textContent = Math.max(0, Math.ceil(p.hp)) + '/100';
-            }
-
-            // Project world pos to screen
+            
+            // Update target position for smooth movement
+            playerMeshes[id].userData.targetPos.set(p.x, p.y + 1, p.z);
+            
+            // Nametags & Compass logic
             tempV.set(p.x, p.y + 2.5, p.z); tempV.project(camera);
-            if (tempV.z < 1) { 
-                hud.style.display = 'flex';
-                hud.style.left = `${(tempV.x * 0.5 + 0.5) * window.innerWidth}px`;
-                hud.style.top = `${(-(tempV.y * 0.5) + 0.5) * window.innerHeight}px`;
-            } else { hud.style.display = 'none'; }
+            if (tempV.z < 1) {
+                const nx = (tempV.x * .5 + .5) * window.innerWidth; const ny = (tempV.y * -.5 + .5) * window.innerHeight;
+                nametagElements[id].style.display = 'block'; nametagElements[id].style.left = nx + 'px'; nametagElements[id].style.top = ny + 'px';
+            } else { nametagElements[id].style.display = 'none'; }
         }
       }
 
-      // Clean up disconnected players
-      for (const id in playerMeshes) { 
+      for (const id in playerMeshes) {
           if (!state.players[id]) { 
-            scene.remove(playerMeshes[id]); delete playerMeshes[id]; 
-            if (playerHUDs[id]) { playerHUDs[id].remove(); delete playerHUDs[id]; } 
-          } 
-      }
-
-      const activeProjIds = new Set(state.projectiles.map(pr => pr.id));
-      for (const pr of state.projectiles) {
-          if (!projectileMeshes[pr.id]) projectileMeshes[pr.id] = createProjectileMesh(pr);
-          const mesh = projectileMeshes[pr.id];
-          mesh.position.set(pr.x, pr.y, pr.z);
-          if (pr.vx !== 0 || pr.vy !== 0 || pr.vz !== 0) {
-              if (pr.shape !== 'icosahedron' && pr.shape !== 'octahedron' && pr.shape !== 'tetrahedron' && pr.shape !== 'torusknot' && pr.shape !== 'rock') {
-                  mesh.lookAt(pr.x + pr.vx, pr.y + pr.vy, pr.z + pr.vz);
-              } else {
-                  mesh.rotation.x += 0.1; mesh.rotation.y += 0.1;
-              }
+              scene.remove(playerMeshes[id]); delete playerMeshes[id];
+              document.getElementById('nametags-container').removeChild(nametagElements[id]); delete nametagElements[id];
           }
       }
-      for (const id in projectileMeshes) { 
-          if (!activeProjIds.has(id)) { scene.remove(projectileMeshes[id]); delete projectileMeshes[id]; } 
+
+      const projIds = new Set();
+      for (const pr of state.projectiles) {
+          projIds.add(pr.id);
+          if (!projectileMeshes[pr.id]) {
+              const mesh = createProjectileMesh(pr);
+              mesh.position.set(pr.x, pr.y, pr.z);
+              mesh.userData.targetPos = new THREE.Vector3(pr.x, pr.y, pr.z);
+              mesh.userData.shape = pr.shape;
+              mesh.userData.color = pr.color;
+              if (pr.shape === 'wall') mesh.rotation.y = pr.yaw || 0;
+              projectileMeshes[pr.id] = mesh;
+          }
+          projectileMeshes[pr.id].userData.targetPos.set(pr.x, pr.y, pr.z);
+      }
+
+      for (const id in projectileMeshes) {
+          if (!projIds.has(id)) { 
+              scene.remove(projectileMeshes[id]); delete projectileMeshes[id]; 
+          }
       }
     });
 
-    setInterval(() => { if (isGameStarted && document.pointerLockElement === document.body) socket.emit('input', inputs); }, 1000 / 30);
+    // --- RENDER LOOP WITH LERP & TRAILS ---
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        // 1. Send Inputs
+        if (isGameStarted) socket.emit('input', inputs);
+        
+        const lerpSpeed = 0.35; // Adjust for smoother/snappier movement
+
+        // 2. Smooth Camera
+        if (isGameStarted && window.myId) {
+            camera.position.lerp(targetCameraPos, lerpSpeed);
+        }
+
+        // 3. Smooth Enemy Players
+        for (const id in playerMeshes) {
+            if (playerMeshes[id].userData.targetPos) {
+                playerMeshes[id].position.lerp(playerMeshes[id].userData.targetPos, lerpSpeed);
+            }
+        }
+
+        // 4. Smooth Projectiles & Spawning Trails
+        for (const id in projectileMeshes) {
+            const proj = projectileMeshes[id];
+            if (proj.userData.targetPos) {
+                proj.position.lerp(proj.userData.targetPos, lerpSpeed);
+            }
+            
+            const shape = proj.userData.shape;
+            if (shape !== 'wall' && shape !== 'flat' && shape !== 'spike' && shape !== 'lightning') {
+                // Spin non-static projectiles
+                proj.rotation.x += 0.05; proj.rotation.y += 0.05;
+                
+                // Spawn Trail Pixels randomly
+                if (Math.random() > 0.4) {
+                    const trailMat = new THREE.MeshBasicMaterial({ 
+                        color: proj.userData.color, 
+                        transparent: true, 
+                        opacity: 0.8 
+                    });
+                    const pixel = new THREE.Mesh(sharedTrailGeo, trailMat);
+                    pixel.position.copy(proj.position);
+                    
+                    // Add slight random spread
+                    pixel.position.x += (Math.random() - 0.5) * 0.5;
+                    pixel.position.y += (Math.random() - 0.5) * 0.5;
+                    pixel.position.z += (Math.random() - 0.5) * 0.5;
+
+                    scene.add(pixel);
+                    trails.push({ mesh: pixel, life: 1.0 });
+                }
+            }
+        }
+
+        // 5. Update Particle Trails
+        for (let i = trails.length - 1; i >= 0; i--) {
+            const t = trails[i];
+            t.life -= 0.04; // Trail fade speed
+            
+            if (t.life <= 0) {
+                scene.remove(t.mesh);
+                t.mesh.material.dispose();
+                trails.splice(i, 1);
+            } else {
+                t.mesh.material.opacity = t.life;
+                t.mesh.scale.setScalar(t.life); // Shrink over time
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
     
-    function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); } animate();
-    
-    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
   </script>
 </body>
 </html>
